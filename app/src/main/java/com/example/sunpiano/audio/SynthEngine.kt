@@ -28,6 +28,10 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
     companion object {
         const val BLOCK = 256
         const val MAX_VOICES = 24
+        /** Extra voice slots where stolen notes fade out while the new note starts in another. */
+        private const val FADE_SLOTS = 8
+        /** Time constant of that fade: inaudible as a click, ~45 ms to silence. */
+        private const val STEAL_FADE_S = 0.005f
         const val TABLE = 2048
         private const val BANDS = 11
         private const val TWO_PI = (2.0 * PI).toFloat()
@@ -69,7 +73,7 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
     private val bankCache = HashMap<String, Bank>()
     @Volatile private var bank: Bank = bankFor(Instruments.GRAND)
 
-    private val voices = Array(MAX_VOICES) { Voice() }
+    private val voices = Array(MAX_VOICES + FADE_SLOTS) { Voice() }
     private var orderCounter = 0L
     private var pedalDown = false
 
@@ -238,12 +242,20 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
     }
 
     private fun startNote(note: Int, velocity: Int) {
-        var v = voices.firstOrNull { it.active && it.note == note }
-        if (v == null) v = voices.firstOrNull { !it.active }
+        var v = voices.firstOrNull { it.active && !it.fading && it.note == note }
         if (v == null) {
-            // steal: quietest releasing voice, else the oldest
-            v = voices.filter { it.stage == RELEASE }.minByOrNull { it.env }
-                ?: voices.minByOrNull { it.order }!!
+            if (voices.count { it.active && !it.fading } >= MAX_VOICES) {
+                // Too many notes: fade the quietest releasing note (else the oldest) out quickly
+                // instead of cutting it off, which clicks.
+                val sounding = voices.filter { it.active && !it.fading }
+                val victim = sounding.filter { it.stage == RELEASE }.minByOrNull { it.env } ?: sounding.minByOrNull { it.order }!!
+                victim.fadeOut()
+            }
+            v = voices.firstOrNull { !it.active }
+        }
+        if (v == null) {
+            // every slot busy, even the fade slots: reuse the quietest one (last resort)
+            v = voices.minByOrNull { it.env }!!
             v.active = false
         }
         v.start(note, velocity, bank, sampleRate, Notes.frequency(note, tuningA4).toFloat(), ++orderCounter)
@@ -316,6 +328,8 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
     // ---- voice ----
     private inner class Voice {
         var active = false
+        /** Being faded out to make room for a new note; no longer counts as sounding. */
+        var fading = false
         var held = false
         var sustained = false
         var note = 0
@@ -358,6 +372,7 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
             this.note = note
             this.order = order
             active = true
+            fading = false
             held = true
             sustained = false
             stage = ATTACK
@@ -407,6 +422,14 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
                 sustained = false
                 stage = RELEASE
             }
+        }
+
+        fun fadeOut() {
+            fading = true
+            held = false
+            sustained = false
+            stage = RELEASE
+            releaseCoef = exp(-1f / (STEAL_FADE_S * sampleRate))
         }
 
         fun kill() {
