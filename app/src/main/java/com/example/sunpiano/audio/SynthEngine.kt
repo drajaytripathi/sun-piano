@@ -129,10 +129,11 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
     @Synchronized
     fun start() {
         if (running) return
-        val output = openOutput(sampleRate)
         commands.add(Pedal(sustainRequested))
         running = true
-        thread = Thread({ renderLoop(output) }, "pan-synth").also { it.start() }
+        // The output is created on the audio thread, where a failure is retried instead of
+        // crashing the app.
+        thread = Thread({ renderLoop() }, "pan-synth").also { it.start() }
     }
 
     @Synchronized
@@ -148,23 +149,23 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
 
     // ---- audio thread ----
     /**
-     * Plays until [stop]. If the output fails (e.g. `ERROR_DEAD_OBJECT` when the audio server
-     * restarts or the output device changes), it is released and rebuilt, so sound comes back
-     * on its own instead of stopping until the app is restarted.
+     * Plays until [stop]. Creates the output, and if that fails or the output later fails (e.g.
+     * `ERROR_DEAD_OBJECT`), keeps retrying, so sound comes back on its own instead of the app
+     * crashing or staying silent until it is restarted.
      */
-    private fun renderLoop(initial: AudioOutput) {
+    private fun renderLoop() {
         Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
         val out = FloatArray(BLOCK * 2)
-        var t: AudioOutput? = initial
+        var opened = false
         while (running) {
-            val current = t ?: try {
-                openOutput(sampleRate).also { Log.i(TAG, "audio output rebuilt") }
+            val current = try {
+                openOutput(sampleRate).also { if (opened) Log.i(TAG, "audio output rebuilt") }
             } catch (e: Exception) {
-                Log.w(TAG, "could not rebuild audio output, retrying", e)
-                pause(RETRY_DELAY_MS)
+                Log.w(TAG, "could not create audio output, retrying", e)
+                renderWithoutOutput(out, RETRY_DELAY_MS)
                 continue
             }
-            t = current
+            opened = true
             try {
                 current.play()
                 while (running) {
@@ -183,10 +184,21 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
                 } catch (_: IllegalStateException) {
                 }
                 current.release()
-                t = null
             }
-            if (running) pause(RETRY_DELAY_MS)
+            if (running) renderWithoutOutput(out, RETRY_DELAY_MS)
         }
+    }
+
+    /**
+     * Waits [ms] while no output exists, rendering that much audio into nowhere so notes pressed
+     * meanwhile are processed (and released) as usual instead of all playing at once later.
+     */
+    private fun renderWithoutOutput(out: FloatArray, ms: Long) {
+        repeat((ms * sampleRate / 1000 / BLOCK).toInt().coerceAtLeast(1)) {
+            if (!running) return
+            renderBlock(out)
+        }
+        pause(ms)
     }
 
     private fun pause(ms: Long) {
