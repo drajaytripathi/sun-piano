@@ -13,11 +13,12 @@ import android.os.Looper
 /** Listens to the first connected USB/BLE MIDI controller and forwards channel messages. */
 class MidiInput(
     private val context: Context,
-    private val onNoteOn: (note: Int, velocity: Int) -> Unit,
-    private val onNoteOff: (note: Int) -> Unit,
-    private val onSustain: (down: Boolean) -> Unit,
+    onNoteOn: (note: Int, velocity: Int) -> Unit,
+    onNoteOff: (note: Int) -> Unit,
+    onSustain: (down: Boolean) -> Unit,
     private val onDeviceChanged: (name: String?) -> Unit,
 ) {
+    private val parser = MidiParser(onNoteOn, onNoteOff, onSustain)
     private val handler = Handler(Looper.getMainLooper())
     private val manager: MidiManager? =
         if (context.packageManager.hasSystemFeature(PackageManager.FEATURE_MIDI)) {
@@ -45,7 +46,7 @@ class MidiInput(
         override fun onSend(data: ByteArray, offset: Int, count: Int, timestamp: Long) {
             // MIDI callbacks arrive on a binder thread; hop to main for the UI/view-model.
             val copy = data.copyOfRange(offset, offset + count)
-            handler.post { parse(copy) }
+            handler.post { parser.parse(copy) }
         }
     }
 
@@ -77,6 +78,9 @@ class MidiInput(
     }
 
     private fun close() {
+        // Without this, notes and the pedal held when the device is unplugged (or when we stop
+        // listening) would never get their note-off / pedal-up and stay stuck.
+        parser.releaseAll()
         port?.disconnect(receiver)
         runCatching { port?.close() }
         runCatching { device?.close() }
@@ -84,27 +88,5 @@ class MidiInput(
         device = null
         currentId = -1
         onDeviceChanged(null)
-    }
-
-    private fun parse(d: ByteArray) {
-        var i = 0
-        var running = 0
-        while (i < d.size) {
-            var b = d[i].toInt() and 0xFF
-            if (b >= 0xF8) { i++; continue } // realtime
-            if (b >= 0x80) { running = b; i++ } else if (running == 0) { i++; continue }
-            b = running
-            val type = b and 0xF0
-            val need = if (type == 0xC0 || type == 0xD0) 1 else 2
-            if (b >= 0xF0 || i + need > d.size) return // sysex/system: ignore the rest
-            val d1 = d[i].toInt() and 0x7F
-            val d2 = if (need == 2) d[i + 1].toInt() and 0x7F else 0
-            i += need
-            when (type) {
-                0x90 -> if (d2 > 0) onNoteOn(d1, d2) else onNoteOff(d1)
-                0x80 -> onNoteOff(d1)
-                0xB0 -> if (d1 == 64) onSustain(d2 >= 64)
-            }
-        }
     }
 }
