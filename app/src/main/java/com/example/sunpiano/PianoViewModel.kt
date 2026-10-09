@@ -14,6 +14,7 @@ import com.example.sunpiano.data.Settings
 import com.example.sunpiano.data.SettingsRepository
 import com.example.sunpiano.midi.MidiInput
 import com.example.sunpiano.music.KeyboardLayout
+import com.example.sunpiano.music.NoteHolders
 import com.example.sunpiano.music.Notes
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -75,9 +76,8 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
     /** Left edge of the visible keyboard, in white-key units. */
     val firstWhite: StateFlow<Float> = _firstWhite.asStateFlow()
 
-    /** UI key -> note that is actually sounding (differs by the transpose at press time). */
-    private val held = HashMap<Int, Int>()
-    private val playbackNotes = HashSet<Int>()
+    /** Live presses and playback notes; a note stops only when its last holder lets go. */
+    private val holders = NoteHolders()
     private var playbackJob: Job? = null
 
     private var recStart = -1L
@@ -151,18 +151,20 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- playing ----
     fun noteOn(key: Int, velocity: Int = 100) {
-        if (key !in layout.low..layout.high || key in held) return
+        if (key !in layout.low..layout.high) return
         val sounding = (key + _settings.value.transpose).coerceIn(0, 127)
-        held[key] = sounding
-        engine.noteOn(sounding, velocity)
+        holders.press(key, sounding)
+        engine.noteOn(sounding, velocity) // a second holder re-strikes the note
         record(sounding, velocity)
         publishPressed()
     }
 
     fun noteOff(key: Int) {
-        val sounding = held.remove(key) ?: return
-        engine.noteOff(sounding)
-        record(sounding, 0)
+        if (key !in holders.keys) return
+        holders.release(key)?.let { sounding ->
+            engine.noteOff(sounding)
+            record(sounding, 0)
+        }
         publishPressed()
     }
 
@@ -174,7 +176,7 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun releaseAll() {
-        held.keys.toList().forEach { noteOff(it) }
+        while (holders.keys.isNotEmpty()) noteOff(holders.keys.first())
     }
 
     fun setMetronome(on: Boolean) {
@@ -184,7 +186,7 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun publishPressed() {
-        _pressed.value = held.keys + playbackNotes
+        _pressed.value = holders.keys + holders.playbackNotes
     }
 
     // ---- scrolling ----
@@ -219,7 +221,7 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun stopRecording() {
         // close any still-held notes so the recording is well formed
-        held.values.toList().forEach { record(it, 0) }
+        holders.liveSounding().forEach { record(it, 0) }
         if (_sustain.value) record(NoteEvent.PEDAL, 0)
         _isRecording.value = false
         val events = recEvents.toList()
@@ -253,21 +255,19 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
                     when {
                         e.note == NoteEvent.PEDAL -> engine.setSustain(e.velocity > 0)
                         e.velocity > 0 -> {
+                            holders.playbackPress(e.note)
                             engine.noteOn(e.note, e.velocity)
-                            playbackNotes += e.note
                             publishPressed()
                         }
                         else -> {
-                            engine.noteOff(e.note)
-                            playbackNotes -= e.note
+                            holders.playbackRelease(e.note)?.let { engine.noteOff(it) }
                             publishPressed()
                         }
                     }
                 }
                 delay(400)
             } finally {
-                playbackNotes.forEach { engine.noteOff(it) }
-                playbackNotes.clear()
+                holders.playbackNotes.toList().forEach { n -> holders.playbackRelease(n)?.let { engine.noteOff(it) } }
                 engine.setSustain(_sustain.value)
                 publishPressed()
                 _playingId.value = null

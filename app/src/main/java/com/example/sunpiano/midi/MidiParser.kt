@@ -82,14 +82,14 @@ class MidiParser(
         if (pedalDown) sustain(false)
     }
 
+    // Only one note-on per note-off is passed on, so a device repeating a message can't leave a
+    // note held (or release one held by touch or the computer keyboard).
     private fun noteOn(note: Int, velocity: Int) {
-        held += note
-        onNoteOn(note, velocity)
+        if (held.add(note)) onNoteOn(note, velocity)
     }
 
     private fun noteOff(note: Int) {
-        held -= note
-        onNoteOff(note)
+        if (held.remove(note)) onNoteOff(note)
     }
 
     private fun sustain(down: Boolean) {

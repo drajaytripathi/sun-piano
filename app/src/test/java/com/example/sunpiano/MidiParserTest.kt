@@ -86,4 +86,11 @@ class MidiParserTest {
         parser.parse(bytes(100)) // a stray data byte from the next device must not complete it
         assertEquals(emptyList<String>(), log)
     }
+
+    // ---- bug.md #8: one note-on per note-off, so other holders of the note aren't cut off ----
+
+    @Test fun repeatedNoteOnAndStrayNoteOffAreNotPassedOn() {
+        parser.parse(bytes(0x90, 60, 100, 0x90, 60, 90, 0x80, 60, 0, 0x80, 60, 0, 0x80, 61, 0))
+        assertEquals(listOf("on 60 100", "off 60"), log)
+    }
 }
