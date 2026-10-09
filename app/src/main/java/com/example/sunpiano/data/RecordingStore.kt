@@ -4,6 +4,7 @@ import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
 
 /** Stores recordings as JSON files in the app's private storage. */
 class RecordingStore(private val context: Context) {
@@ -15,10 +16,16 @@ class RecordingStore(private val context: Context) {
             .sortedByDescending { it.createdAt }
     }
 
+    /** Throws [IOException] if the recording couldn't be written (e.g. storage full). */
     suspend fun save(r: Recording) = withContext(Dispatchers.IO) {
         val tmp = File(dir, "${r.id}.tmp")
-        tmp.writeText(r.toJson())
-        tmp.renameTo(File(dir, "${r.id}.json"))
+        try {
+            tmp.writeText(r.toJson())
+            if (!tmp.renameTo(File(dir, "${r.id}.json"))) throw IOException("could not move ${tmp.name} into place")
+        } catch (e: IOException) {
+            tmp.delete()
+            throw e
+        }
         Unit
     }
 

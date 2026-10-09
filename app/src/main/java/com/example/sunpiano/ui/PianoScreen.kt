@@ -77,6 +77,7 @@ fun PianoScreen(vm: PianoViewModel) {
     val beat by vm.beat.collectAsStateWithLifecycle()
     val firstWhite by vm.firstWhite.collectAsStateWithLifecycle()
     val midiName by vm.midiDevice.collectAsStateWithLifecycle()
+    val message by vm.message.collectAsStateWithLifecycle()
     var panel by remember { mutableStateOf(Panel.NONE) }
 
     LocalView.current.keepScreenOn = settings.keepScreenOn
@@ -130,6 +131,15 @@ fun PianoScreen(vm: PianoViewModel) {
         Panel.SETTINGS -> SettingsDialog(settings, vm::updateSettings) { panel = Panel.NONE }
         Panel.RECORDINGS -> RecordingsDialog(vm) { panel = Panel.NONE }
         Panel.NONE -> Unit
+    }
+
+    message?.let { text ->
+        AlertDialog(
+            onDismissRequest = vm::messageShown,
+            confirmButton = { TextButton(vm::messageShown) { Text("OK") } },
+            title = { Text("Something went wrong") },
+            text = { Text(text) },
+        )
     }
 }
 

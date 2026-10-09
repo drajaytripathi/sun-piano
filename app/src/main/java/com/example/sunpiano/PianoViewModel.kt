@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.io.File
+import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -72,6 +73,14 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
     private val _beat = MutableStateFlow(-1)
     /** Current metronome beat within the bar, or -1 when stopped. */
     val beat: StateFlow<Int> = _beat.asStateFlow()
+
+    private val _message = MutableStateFlow<String?>(null)
+    /** A problem to tell the user about, or null. The UI shows it and then calls [messageShown]. */
+    val message: StateFlow<String?> = _message.asStateFlow()
+
+    fun messageShown() {
+        _message.value = null
+    }
 
     private val _midiDevice = MutableStateFlow<String?>(null)
     val midiDevice: StateFlow<String?> = _midiDevice.asStateFlow()
@@ -236,7 +245,7 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
         val name = "Recording " + SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()).format(Date(now))
         val rec = Recording(UUID.randomUUID().toString(), name, now, events.maxOf { it.timeMs }, events)
         viewModelScope.launch {
-            store.save(rec)
+            saveOrReport(rec, "Couldn't save the recording")
             _recordings.value = store.list()
         }
     }
@@ -298,12 +307,22 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
     fun renameRecording(rec: Recording, name: String) {
         val clean = name.trim().ifEmpty { return }
         viewModelScope.launch {
-            store.save(rec.copy(name = clean))
+            saveOrReport(rec.copy(name = clean), "Couldn't rename the recording")
             _recordings.value = store.list()
         }
     }
 
     suspend fun exportMidi(rec: Recording): File = store.exportMidi(rec)
+
+    /** Saves [rec]; on failure tells the user instead of losing it silently (or crashing). */
+    private suspend fun saveOrReport(rec: Recording, failure: String) {
+        try {
+            store.save(rec)
+        } catch (e: IOException) {
+            android.util.Log.e("SunPiano", "$failure: ${rec.name}", e)
+            _message.value = "$failure (\"${rec.name}\"). The device storage may be full."
+        }
+    }
 
     // ---- computer keyboard ----
     // Keys are matched by position, never by the character they type: a character table only
