@@ -12,30 +12,70 @@ class MidiParser(
     private val held = LinkedHashSet<Int>()
     private var pedalDown = false
 
+    // Parser state, kept between calls: a message, a SysEx dump or running status can continue
+    // in the next buffer.
+    private var status = 0 // running status of the current channel message, 0 = none
+    private var inSysex = false
+    private var skip = 0 // data bytes of a system common message still to skip
+    private val data = IntArray(2)
+    private var count = 0
+
     fun parse(d: ByteArray) {
-        var i = 0
-        var running = 0
-        while (i < d.size) {
-            var b = d[i].toInt() and 0xFF
-            if (b >= 0xF8) { i++; continue } // realtime
-            if (b >= 0x80) { running = b; i++ } else if (running == 0) { i++; continue }
-            b = running
-            val type = b and 0xF0
-            val need = if (type == 0xC0 || type == 0xD0) 1 else 2
-            if (b >= 0xF0 || i + need > d.size) return // sysex/system: ignore the rest
-            val d1 = d[i].toInt() and 0x7F
-            val d2 = if (need == 2) d[i + 1].toInt() and 0x7F else 0
-            i += need
-            when (type) {
-                0x90 -> if (d2 > 0) noteOn(d1, d2) else noteOff(d1)
-                0x80 -> noteOff(d1)
-                0xB0 -> if (d1 == 64) sustain(d2 >= 64)
+        for (byte in d) feed(byte.toInt() and 0xFF)
+    }
+
+    private fun feed(b: Int) {
+        when {
+            b >= 0xF8 -> Unit // realtime (clock, start, stop…): may appear anywhere, changes nothing
+            b == 0xF0 -> { // SysEx start: skip everything up to F7
+                inSysex = true
+                status = 0
+                skip = 0
+            }
+            b >= 0xF1 -> { // system common (incl. F7 end of SysEx): cancels running status
+                inSysex = false
+                status = 0
+                count = 0
+                skip = when (b) {
+                    0xF1, 0xF3 -> 1 // MIDI time code quarter frame, song select
+                    0xF2 -> 2 // song position
+                    else -> 0 // tune request, end of SysEx, undefined
+                }
+            }
+            b >= 0x80 -> { // channel message status (also ends an unterminated SysEx)
+                inSysex = false
+                status = b
+                count = 0
+                skip = 0
+            }
+            inSysex -> Unit
+            skip > 0 -> skip--
+            status == 0 -> Unit // data byte without a status: ignore
+            else -> {
+                data[count++] = b
+                val type = status and 0xF0
+                val need = if (type == 0xC0 || type == 0xD0) 1 else 2
+                if (count == need) {
+                    count = 0 // running status: the next data bytes reuse `status`
+                    when (type) {
+                        0x90 -> if (data[1] > 0) noteOn(data[0], data[1]) else noteOff(data[0])
+                        0x80 -> noteOff(data[0])
+                        0xB0 -> if (data[0] == 64) sustain(data[1] >= 64)
+                    }
+                }
             }
         }
     }
 
-    /** Sends note-off for every note the device still holds, and pedal-up if its pedal is down. */
+    /**
+     * For when the device goes away: sends note-off for every note it still holds and pedal-up if
+     * its pedal is down, and forgets any half-received message.
+     */
     fun releaseAll() {
+        status = 0
+        inSysex = false
+        skip = 0
+        count = 0
         val notes = held.toList()
         held.clear()
         notes.forEach { onNoteOff(it) }
