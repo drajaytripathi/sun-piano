@@ -32,6 +32,12 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
         private const val FADE_SLOTS = 8
         /** Time constant of that fade: inaudible as a click, ~45 ms to silence. */
         private const val STEAL_FADE_S = 0.005f
+        /**
+         * Highest FM modulator frequency, as a fraction of the sample rate. Above this the
+         * modulator folds back below Nyquist as an out-of-tune tone, so FM is left off for those
+         * (very high) notes; their real overtones would be ultrasonic anyway.
+         */
+        private const val MAX_FM_INC = 0.45f
         const val TABLE = 2048
         private const val BANDS = 11
         private const val TWO_PI = (2.0 * PI).toFloat()
@@ -399,8 +405,8 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
             inc1 = freq / sr
             second = ins.detuneCents != 0f
             inc2 = inc1 * 2f.pow(ins.detuneCents / 1200f)
-            fm = ins.fmIndex > 0f
             incM = freq * ins.fmRatio / sr
+            fm = ins.fmIndex > 0f && incM < MAX_FM_INC
             fmAmp = ins.fmIndex * (0.4f + 0.6f * v) / TWO_PI
             fmCoef = exp(-1f / (max(ins.fmDecay, 0.005f) * sr))
             vibInc = ins.vibratoHz / sr
@@ -468,7 +474,7 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
                 var pm = 0f
                 if (fm) {
                     phaseM += incM
-                    if (phaseM >= 1f) phaseM -= 1f
+                    phaseM -= floor(phaseM) // stays in [0, 1) whatever the step; a single "-= 1" didn't
                     fmAmp *= fmCoef
                     pm = fmAmp * lookup(sineTable, phaseM)
                 }
