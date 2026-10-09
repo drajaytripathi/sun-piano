@@ -1,10 +1,9 @@
 package com.example.sunpiano.audio
 
-import android.media.AudioAttributes
-import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
 import android.os.Process
+import android.util.Log
 import com.example.sunpiano.music.Notes
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.math.PI
@@ -19,12 +18,13 @@ import kotlin.math.sin
 import kotlin.math.tanh
 
 /**
- * Polyphonic real-time synthesizer rendering into a low-latency float [AudioTrack].
+ * Polyphonic real-time synthesizer rendering into an [AudioOutput] (a low-latency float
+ * [AudioTrack] unless [openOutput] says otherwise).
  *
  * Public methods are thread-safe: note events go through a lock-free queue that the
  * audio thread drains once per block; parameters are volatile fields.
  */
-class SynthEngine {
+class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::AudioTrackOutput) {
     companion object {
         const val BLOCK = 256
         const val MAX_VOICES = 24
@@ -34,6 +34,9 @@ class SynthEngine {
         private const val ATTACK = 0
         private const val DECAY = 1
         private const val RELEASE = 2
+        private const val TAG = "SynthEngine"
+        /** Pause between attempts to rebuild a failed audio output, so a dead device doesn't spin. */
+        private const val RETRY_DELAY_MS = 200L
     }
 
     private sealed interface Cmd
@@ -73,7 +76,6 @@ class SynthEngine {
 
     @Volatile private var running = false
     private var thread: Thread? = null
-    private var track: AudioTrack? = null
 
     // metronome state (audio thread only)
     private var wasMetro = false
@@ -113,28 +115,9 @@ class SynthEngine {
     @Synchronized
     fun start() {
         if (running) return
-        val format = AudioFormat.Builder()
-            .setEncoding(AudioFormat.ENCODING_PCM_FLOAT)
-            .setSampleRate(sampleRate)
-            .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
-            .build()
-        val minBytes = AudioTrack.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_OUT_STEREO, AudioFormat.ENCODING_PCM_FLOAT)
-        val bytes = max(minBytes, BLOCK * 2 * 4 * 2)
-        val t = AudioTrack.Builder()
-            .setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_MEDIA)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                    .build(),
-            )
-            .setAudioFormat(format)
-            .setTransferMode(AudioTrack.MODE_STREAM)
-            .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
-            .setBufferSizeInBytes(bytes)
-            .build()
-        track = t
+        val output = openOutput(sampleRate)
         running = true
-        thread = Thread({ renderLoop(t) }, "pan-synth").also { it.start() }
+        thread = Thread({ renderLoop(output) }, "pan-synth").also { it.start() }
     }
 
     @Synchronized
@@ -143,28 +126,58 @@ class SynthEngine {
         running = false
         thread?.join(1000)
         thread = null
-        track = null
         commands.clear()
         voices.forEach { it.active = false }
         pedalDown = false
     }
 
     // ---- audio thread ----
-    private fun renderLoop(t: AudioTrack) {
+    /**
+     * Plays until [stop]. If the output fails (e.g. `ERROR_DEAD_OBJECT` when the audio server
+     * restarts or the output device changes), it is released and rebuilt, so sound comes back
+     * on its own instead of stopping until the app is restarted.
+     */
+    private fun renderLoop(initial: AudioOutput) {
         Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
         val out = FloatArray(BLOCK * 2)
-        try {
-            t.play()
-            while (running) {
-                renderBlock(out)
-                if (t.write(out, 0, out.size, AudioTrack.WRITE_BLOCKING) < 0) break
+        var t: AudioOutput? = initial
+        while (running) {
+            val current = t ?: try {
+                openOutput(sampleRate).also { Log.i(TAG, "audio output rebuilt") }
+            } catch (e: Exception) {
+                Log.w(TAG, "could not rebuild audio output, retrying", e)
+                pause(RETRY_DELAY_MS)
+                continue
             }
-        } finally {
+            t = current
             try {
-                t.stop()
-            } catch (_: IllegalStateException) {
+                current.play()
+                while (running) {
+                    renderBlock(out)
+                    val written = current.write(out)
+                    if (written < 0) {
+                        Log.w(TAG, "audio output failed (error $written), rebuilding it")
+                        break
+                    }
+                }
+            } catch (e: IllegalStateException) {
+                Log.w(TAG, "audio output failed, rebuilding it", e)
+            } finally {
+                try {
+                    current.stop()
+                } catch (_: IllegalStateException) {
+                }
+                current.release()
+                t = null
             }
-            t.release()
+            if (running) pause(RETRY_DELAY_MS)
+        }
+    }
+
+    private fun pause(ms: Long) {
+        try {
+            Thread.sleep(ms)
+        } catch (_: InterruptedException) {
         }
     }
 
