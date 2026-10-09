@@ -72,6 +72,9 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
     private val voices = Array(MAX_VOICES) { Voice() }
     private var orderCounter = 0L
     private var pedalDown = false
+
+    /** Last sustain state asked for. [stop] resets the pedal and drops queued commands, so [start] re-applies it. */
+    @Volatile private var sustainRequested = false
     private val reverb = Reverb(sampleRate)
 
     @Volatile private var running = false
@@ -100,6 +103,7 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
     }
 
     fun setSustain(down: Boolean) {
+        sustainRequested = down
         commands.add(Pedal(down))
     }
 
@@ -116,6 +120,7 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
     fun start() {
         if (running) return
         val output = openOutput(sampleRate)
+        commands.add(Pedal(sustainRequested))
         running = true
         thread = Thread({ renderLoop(output) }, "pan-synth").also { it.start() }
     }
