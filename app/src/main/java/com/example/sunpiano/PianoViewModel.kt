@@ -7,6 +7,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.sunpiano.audio.Instruments
 import com.example.sunpiano.audio.SynthEngine
+import com.example.sunpiano.data.DebouncedSaver
 import com.example.sunpiano.data.NoteEvent
 import com.example.sunpiano.data.Recording
 import com.example.sunpiano.data.RecordingStore
@@ -39,6 +40,9 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
     private val engine = SynthEngine()
     private val settingsRepo = SettingsRepository(app)
     private val store = RecordingStore(app)
+
+    /** Writes settings once they stop changing, instead of on every slider movement. */
+    private val settingsSaver = DebouncedSaver(viewModelScope, SETTINGS_SAVE_DELAY_MS) { s: Settings -> settingsRepo.save(s) }
 
     private val _settings = MutableStateFlow(Settings())
     val settings: StateFlow<Settings> = _settings.asStateFlow()
@@ -115,6 +119,7 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun onBackground() {
+        settingsSaver.flush() // don't lose a change made just before leaving
         if (!foreground) return
         foreground = false
         stopPlayback()
@@ -135,7 +140,7 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
         val next = transform(_settings.value)
         _settings.value = next
         applySettings(next)
-        viewModelScope.launch { settingsRepo.save(next) }
+        settingsSaver.submit(next)
         clampScroll()
     }
 
@@ -304,6 +309,8 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
     // Keys are matched by position, never by the character they type: a character table only
     // works on a US layout (on an Arabic layout just one key matched).
     companion object {
+        private const val SETTINGS_SAVE_DELAY_MS = 500L
+
         // Linux evdev scan codes (see Android's Generic.kl), unaffected by the selected layout.
         // Rows by US label: Z S X D C V G B H N J M , L . ; /  and  Q 2 W 3 E R 5 T 6 Y 7 U I 9 O 0 P [ = ]
         private val LOWER_SCANS = intArrayOf(44, 31, 45, 32, 46, 47, 34, 48, 35, 49, 36, 50, 51, 38, 52, 39, 53)
