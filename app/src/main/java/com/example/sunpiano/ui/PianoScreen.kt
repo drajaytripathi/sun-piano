@@ -376,7 +376,7 @@ private fun RecordingsDialog(vm: PianoViewModel, onClose: () -> Unit) {
                                 TextButton({ renaming = rec }) { Text("Rename") }
                                 TextButton({
                                     scope.launch {
-                                        val file = vm.exportMidi(rec)
+                                        val file = vm.exportMidi(rec) ?: return@launch
                                         val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
                                         val send = Intent(Intent.ACTION_SEND).apply {
                                             type = "audio/midi"

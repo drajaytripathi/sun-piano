@@ -312,7 +312,14 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    suspend fun exportMidi(rec: Recording): File = store.exportMidi(rec)
+    /** Writes [rec] as a .mid file for sharing; on failure tells the user and returns null. */
+    suspend fun exportMidi(rec: Recording): File? = try {
+        store.exportMidi(rec)
+    } catch (e: IOException) {
+        android.util.Log.e("SunPiano", "Couldn't export ${rec.name}", e)
+        _message.value = "Couldn't export \"${rec.name}\" as MIDI. The device storage may be full."
+        null
+    }
 
     /** Saves [rec]; on failure tells the user instead of losing it silently (or crashing). */
     private suspend fun saveOrReport(rec: Recording, failure: String) {

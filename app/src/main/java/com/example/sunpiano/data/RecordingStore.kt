@@ -34,10 +34,30 @@ class RecordingStore(private val context: Context) {
         Unit
     }
 
-    /** Writes a .mid file into the cache dir (exposed through FileProvider) and returns it. */
+    /**
+     * Writes a .mid file into the cache dir (exposed through FileProvider) and returns it. Each
+     * recording gets its own folder, so recordings with the same name can't overwrite each
+     * other's export. Throws [IOException] if it can't be written.
+     */
     suspend fun exportMidi(r: Recording): File = withContext(Dispatchers.IO) {
-        val out = File(context.cacheDir, "exports").also { it.mkdirs() }
-        val safe = r.name.replace(Regex("[^A-Za-z0-9._-]+"), "_").trim('_').ifEmpty { "recording" }
-        File(out, "$safe.mid").also { it.writeBytes(MidiFileWriter.write(r)) }
+        val out = File(context.cacheDir, "exports/${r.id}")
+        out.deleteRecursively() // an earlier export under a previous name
+        if (!out.mkdirs() && !out.isDirectory) throw IOException("could not create ${out.path}")
+        File(out, exportFileName(r.name)).also { it.writeBytes(MidiFileWriter.write(r)) }
+    }
+
+    companion object {
+        /**
+         * File name for sharing a recording called [name]: keeps letters of any script (Arabic,
+         * accents…) and replaces only characters file systems reject.
+         */
+        fun exportFileName(name: String): String {
+            var clean = name.replace(Regex("[\\\\/:*?\"<>|\\p{Cntrl}]+"), "_").trim(' ', '.', '_')
+            if (clean.length > 80) {
+                clean = clean.take(80)
+                if (clean.last().isHighSurrogate()) clean = clean.dropLast(1) // don't split an emoji
+            }
+            return clean.ifEmpty { "recording" } + ".mid"
+        }
     }
 }
