@@ -104,14 +104,25 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
         onDeviceChanged = { _midiDevice.value = it },
     )
 
+    /** Settings changes made before the saved settings finished loading; null once loaded. */
+    private var changesBeforeLoad: MutableList<(Settings) -> Settings>? = ArrayList()
+
     init {
         engine.onBeat = { _beat.value = it }
         // decoded piano recordings cached by earlier versions (about 51 MB)
         File(app.cacheDir, "piano-pcm").deleteRecursively()
         viewModelScope.launch {
-            val saved = settingsRepo.flow.first()
-            _settings.value = saved
-            applySettings(saved)
+            var loaded = settingsRepo.flow.first()
+            // Changes made while loading were applied to the defaults; replay them on the saved
+            // settings so neither the saved settings nor those changes are lost.
+            val early = changesBeforeLoad.orEmpty()
+            changesBeforeLoad = null
+            for (change in early) loaded = change(loaded)
+            val changed = early.isNotEmpty()
+            _settings.value = loaded
+            applySettings(loaded)
+            clampScroll()
+            if (changed) settingsSaver.submit(loaded)
             _recordings.value = store.list()
         }
     }
@@ -149,7 +160,9 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
         val next = transform(_settings.value)
         _settings.value = next
         applySettings(next)
-        settingsSaver.submit(next)
+        // Before loading finishes `next` is built on the defaults: saving it would overwrite the
+        // user's settings, so remember the change instead (it's saved once replayed on load).
+        changesBeforeLoad?.add(transform) ?: settingsSaver.submit(next)
         clampScroll()
     }
 

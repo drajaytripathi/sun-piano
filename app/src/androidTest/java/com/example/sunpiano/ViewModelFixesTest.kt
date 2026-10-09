@@ -20,7 +20,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.Collections
 
-/** Fixes checked through the real view model: bug.md #8 (shared notes) and #17 (settings writes). */
+/** Fixes checked through the real view model: bug.md #8 (shared notes), #11 (settings at startup) and #17 (settings writes). */
 @RunWith(AndroidJUnit4::class)
 class ViewModelFixesTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
@@ -76,5 +76,23 @@ class ViewModelFixesTest {
         }
         delay(200) // well under the 500 ms debounce
         assertEquals(0.42f, repo.flow.first().volume, 0.0001f)
+    }
+
+    @Test
+    fun aSettingChangedWhileLoadingKeepsTheSavedSettings() = runBlocking {
+        repo.save(original.copy(instrumentId = "organ", bpm = 140, reverb = 0.1f))
+        lateinit var fresh: PianoViewModel
+        onMain {
+            fresh = PianoViewModel(app) // starts loading the saved settings
+            fresh.updateSettings { it.copy(reverb = 0.9f) } // ...and this comes before they arrive
+        }
+        delay(1500)
+        val stored = repo.flow.first()
+        assertEquals("saved instrument overwritten", "organ", stored.instrumentId)
+        assertEquals("saved tempo overwritten", 140, stored.bpm)
+        assertEquals("the early change was lost", 0.9f, stored.reverb, 0.001f)
+        val shown = fresh.settings.value
+        assertEquals("organ", shown.instrumentId)
+        assertEquals(0.9f, shown.reverb, 0.001f)
     }
 }
