@@ -31,8 +31,12 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onStop() {
+        // Key-ups for keys held now would reach the next activity, which doesn't know them.
+        typedKeys.values.forEach { vm.noteOff(it) }
         typedKeys.clear()
-        vm.onBackground()
+        // Being recreated for a configuration change the manifest doesn't handle: keep playing,
+        // recording and the metronome going; the view model outlives this activity.
+        if (!isChangingConfigurations) vm.onBackground()
         super.onStop()
     }
 

@@ -104,12 +104,19 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---- lifecycle ----
+    private var foreground = false
+
+    /** Safe to call again while already in the foreground (e.g. by a recreated activity). */
     fun onForeground() {
+        if (foreground) return
+        foreground = true
         engine.start()
         midi.start()
     }
 
     fun onBackground() {
+        if (!foreground) return
+        foreground = false
         stopPlayback()
         if (_isRecording.value) stopRecording()
         releaseAll()
