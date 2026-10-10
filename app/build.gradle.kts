@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.sunpiano"
+    namespace = "code.alimiracle.sunpiano"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.sunpiano"
+        applicationId = "code.alimiracle.sunpiano"
         minSdk = 26
         targetSdk = 36
         versionCode = 1

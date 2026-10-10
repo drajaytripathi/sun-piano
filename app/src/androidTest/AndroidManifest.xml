@@ -3,7 +3,7 @@
     <application>
         <!-- A virtual MIDI keyboard that tests can open like a plugged-in one -->
         <service
-            android:name="com.example.sunpiano.TestMidiDeviceService"
+            android:name="code.alimiracle.sunpiano.TestMidiDeviceService"
             android:exported="true"
             android:permission="android.permission.BIND_MIDI_DEVICE_SERVICE">
             <intent-filter>

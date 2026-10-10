@@ -1,1 +1,1 @@
--keep class com.example.sunpiano.** { *; }
+-keep class code.alimiracle.sunpiano.** { *; }
