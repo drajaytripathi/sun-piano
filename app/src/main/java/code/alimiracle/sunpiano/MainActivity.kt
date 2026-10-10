@@ -4,6 +4,7 @@ import android.media.AudioManager
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.View
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -25,8 +26,19 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         volumeControlStream = AudioManager.STREAM_MUSIC
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        keepKeysFromTheInputMethod()
         setContent { PanTheme { PianoScreen(vm) } }
         holdKeyFocus()
+    }
+
+    /**
+     * Android gives a hardware keyboard's keys to the input method (e.g. SwiftKey) before the app,
+     * and some input methods turn letters and Space into typed text, so the piano never saw them.
+     * This window has no text fields (renaming a recording happens in a dialog, a window of its
+     * own), so it opts out of the input method and gets the keys directly.
+     */
+    private fun keepKeysFromTheInputMethod() {
+        window.setFlags(WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM, WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM)
     }
 
     /**
