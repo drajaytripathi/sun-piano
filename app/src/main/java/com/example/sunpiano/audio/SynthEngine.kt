@@ -146,6 +146,10 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
         commands.clear()
         voices.forEach { it.active = false }
         pedalDown = false
+        // Without this the reverb (and a click) would play out what was sounding when we stopped
+        // as an echo on the next start.
+        reverb.clear()
+        clickEnv = 0f
     }
 
     // ---- audio thread ----
@@ -553,6 +557,16 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
         private val apR = intArrayOf(579, 464, 364).map { Allpass(n(it)) }
         var outL = 0f
         var outR = 0f
+
+        fun clear() {
+            for (c in combL + combR) {
+                c.buf.fill(0f)
+                c.store = 0f
+            }
+            for (a in apL + apR) a.buf.fill(0f)
+            outL = 0f
+            outR = 0f
+        }
 
         fun process(inL: Float, inR: Float) {
             val x = (inL + inR) * 0.15f
