@@ -9,6 +9,7 @@ import androidx.activity.viewModels
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.example.sunpiano.music.SustainSources
 import com.example.sunpiano.ui.PanTheme
 import com.example.sunpiano.ui.PianoScreen
 
@@ -34,6 +35,7 @@ class MainActivity : ComponentActivity() {
         // Key-ups for keys held now would reach the next activity, which doesn't know them.
         typedKeys.values.forEach { vm.noteOff(it) }
         typedKeys.clear()
+        vm.setSustain(SustainSources.Source.SPACE, false)
         // Being recreated for a configuration change the manifest doesn't handle: keep playing,
         // recording and the metronome going; the view model outlives this activity.
         if (!isChangingConfigurations) vm.onBackground()
@@ -57,7 +59,7 @@ class MainActivity : ComponentActivity() {
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.isCtrlPressed || event.isAltPressed || event.isMetaPressed) return super.dispatchKeyEvent(event)
         if (event.keyCode == KeyEvent.KEYCODE_SPACE) {
-            if (event.repeatCount == 0) vm.setSustain(event.action == KeyEvent.ACTION_DOWN)
+            if (event.repeatCount == 0) vm.setSustain(SustainSources.Source.SPACE, event.action == KeyEvent.ACTION_DOWN)
             return true
         }
         val physical = if (event.scanCode > 0) event.scanCode else -event.keyCode

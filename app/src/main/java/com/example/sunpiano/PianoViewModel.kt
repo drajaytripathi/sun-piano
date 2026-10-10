@@ -17,6 +17,7 @@ import com.example.sunpiano.midi.MidiInput
 import com.example.sunpiano.music.KeyboardLayout
 import com.example.sunpiano.music.NoteHolders
 import com.example.sunpiano.music.Notes
+import com.example.sunpiano.music.SustainSources
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -52,8 +53,13 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
     /** Keys currently lit on screen (touch, MIDI, computer keyboard and playback). */
     val pressed: StateFlow<Set<Int>> = _pressed.asStateFlow()
 
+    private val sustainSources = SustainSources()
     private val _sustain = MutableStateFlow(false)
+    /** Whether the pedal is down, from any source. */
     val sustain: StateFlow<Boolean> = _sustain.asStateFlow()
+    private val _sustainLatched = MutableStateFlow(false)
+    /** Whether the on-screen Sustain button is latched on. */
+    val sustainLatched: StateFlow<Boolean> = _sustainLatched.asStateFlow()
 
     private val _recordings = MutableStateFlow<List<Recording>>(emptyList())
     val recordings: StateFlow<List<Recording>> = _recordings.asStateFlow()
@@ -100,7 +106,7 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
         app,
         onNoteOn = { n, v -> noteOn(n, v) },
         onNoteOff = { noteOff(it) },
-        onSustain = { setSustain(it) },
+        onSustain = { setSustain(SustainSources.Source.MIDI, it) },
         onDeviceChanged = { _midiDevice.value = it },
     )
 
@@ -195,12 +201,17 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
         publishPressed()
     }
 
-    fun setSustain(down: Boolean) {
-        if (_sustain.value == down) return
-        _sustain.value = down
-        engine.setSustain(down)
-        record(NoteEvent.PEDAL, if (down) 127 else 0)
+    /** Presses or releases the pedal for one [source]; it stays down while any source holds it. */
+    fun setSustain(source: SustainSources.Source, down: Boolean) {
+        val pedal = sustainSources.set(source, down)
+        if (source == SustainSources.Source.BUTTON) _sustainLatched.value = down
+        if (_sustain.value == pedal) return
+        _sustain.value = pedal
+        engine.setSustain(pedal)
+        record(NoteEvent.PEDAL, if (pedal) 127 else 0)
     }
+
+    fun toggleSustainButton() = setSustain(SustainSources.Source.BUTTON, !_sustainLatched.value)
 
     fun releaseAll() {
         while (holders.keys.isNotEmpty()) noteOff(holders.keys.first())

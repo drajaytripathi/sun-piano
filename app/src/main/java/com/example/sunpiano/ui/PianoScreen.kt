@@ -71,7 +71,7 @@ private enum class Panel { NONE, METRONOME, SETTINGS, RECORDINGS }
 fun PianoScreen(vm: PianoViewModel) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val pressed by vm.pressed.collectAsStateWithLifecycle()
-    val sustain by vm.sustain.collectAsStateWithLifecycle()
+    val sustain by vm.sustainLatched.collectAsStateWithLifecycle()
     val recording by vm.isRecording.collectAsStateWithLifecycle()
     val metronome by vm.metronomeOn.collectAsStateWithLifecycle()
     val beat by vm.beat.collectAsStateWithLifecycle()
@@ -97,7 +97,7 @@ fun PianoScreen(vm: PianoViewModel) {
             midiName = midiName,
             onInstrument = { id -> vm.updateSettings { it.copy(instrumentId = id) } },
             onVolume = { v -> vm.updateSettings { it.copy(volume = v) } },
-            onSustain = { vm.setSustain(!sustain) },
+            onSustain = vm::toggleSustainButton,
             onRecord = vm::toggleRecording,
             onOctave = vm::shiftOctave,
             onPanel = { panel = it },
