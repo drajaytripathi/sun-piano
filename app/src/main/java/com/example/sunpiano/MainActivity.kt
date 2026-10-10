@@ -19,6 +19,7 @@ class MainActivity : ComponentActivity() {
 
     /** Physical key -> piano key, so releasing the same key always ends the right note. */
     private val typedKeys = HashMap<Int, Int>()
+    private var spaceHeld = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,6 +49,7 @@ class MainActivity : ComponentActivity() {
         // Key-ups for keys held now would reach the next activity, which doesn't know them.
         typedKeys.values.forEach { vm.noteOff(it) }
         typedKeys.clear()
+        spaceHeld = false
         vm.setSustain(SustainSources.Source.SPACE, false)
         // Being recreated for a configuration change the manifest doesn't handle: keep playing,
         // recording and the metronome going; the view model outlives this activity.
@@ -71,12 +73,28 @@ class MainActivity : ComponentActivity() {
      * Keys are matched by physical position, so the map works with any keyboard layout.
      */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val physical = if (event.scanCode > 0) event.scanCode else -event.keyCode
+        // A release always ends what its press started, even if Ctrl, Alt or Meta went down in
+        // between; otherwise the note (or sustain) would stay stuck.
+        if (event.action == KeyEvent.ACTION_UP) {
+            if (event.keyCode == KeyEvent.KEYCODE_SPACE && spaceHeld) {
+                spaceHeld = false
+                vm.setSustain(SustainSources.Source.SPACE, false)
+                return true
+            }
+            typedKeys.remove(physical)?.let {
+                vm.noteOff(it)
+                return true
+            }
+        }
         if (event.isCtrlPressed || event.isAltPressed || event.isMetaPressed) return super.dispatchKeyEvent(event)
         if (event.keyCode == KeyEvent.KEYCODE_SPACE) {
-            if (event.repeatCount == 0) vm.setSustain(SustainSources.Source.SPACE, event.action == KeyEvent.ACTION_DOWN)
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                spaceHeld = true
+                vm.setSustain(SustainSources.Source.SPACE, true)
+            }
             return true
         }
-        val physical = if (event.scanCode > 0) event.scanCode else -event.keyCode
         when (event.action) {
             KeyEvent.ACTION_DOWN -> {
                 val key = PianoViewModel.keyForPhysicalKey(event.scanCode, event.keyCode)
@@ -88,10 +106,8 @@ class MainActivity : ComponentActivity() {
                 return true
             }
             KeyEvent.ACTION_UP -> {
-                val key = typedKeys.remove(physical)
-                    ?: return if (PianoViewModel.keyForPhysicalKey(event.scanCode, event.keyCode) != null) true else super.dispatchKeyEvent(event)
-                vm.noteOff(key)
-                return true
+                // a piano key released without a press we saw (e.g. pressed with Ctrl held)
+                return if (PianoViewModel.keyForPhysicalKey(event.scanCode, event.keyCode) != null) true else super.dispatchKeyEvent(event)
             }
         }
         return super.dispatchKeyEvent(event)
