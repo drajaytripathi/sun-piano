@@ -1,5 +1,6 @@
 package com.example.sunpiano.midi
 
+import android.bluetooth.BluetoothDevice
 import android.content.Context
 import android.content.pm.PackageManager
 import android.media.midi.MidiDevice
@@ -10,13 +11,17 @@ import android.media.midi.MidiReceiver
 import android.os.Handler
 import android.os.Looper
 
-/** Listens to the first connected USB/BLE MIDI controller and forwards channel messages. */
+/**
+ * Listens to one MIDI controller and forwards channel messages: the first USB (or already shared)
+ * device, or a Bluetooth keyboard the user picked with [openBluetooth].
+ */
 class MidiInput(
     private val context: Context,
     onNoteOn: (note: Int, velocity: Int) -> Unit,
     onNoteOff: (note: Int) -> Unit,
     onSustain: (down: Boolean) -> Unit,
     private val onDeviceChanged: (name: String?) -> Unit,
+    private val onBluetoothFailed: (name: String) -> Unit = {},
 ) {
     private val parser = MidiParser(onNoteOn, onNoteOff, onSustain)
     private val handler = Handler(Looper.getMainLooper())
@@ -28,6 +33,11 @@ class MidiInput(
     private var device: MidiDevice? = null
     private var port: MidiOutputPort? = null
     private var currentId = -1
+    private var started = false
+
+    /** The Bluetooth keyboard the user picked, reopened by [start] after leaving the app. */
+    private var bluetooth: BluetoothDevice? = null
+    private var bluetoothName = ""
 
     private val callback = object : MidiManager.DeviceCallback() {
         override fun onDeviceAdded(info: MidiDeviceInfo) {
@@ -52,13 +62,40 @@ class MidiInput(
 
     fun start() {
         val m = manager ?: return
+        started = true
         m.registerDeviceCallback(callback, handler)
+        bluetooth?.let { connectBluetooth(it) }
         if (device == null) m.devices.firstOrNull { it.outputPortCount > 0 }?.let { open(it) }
     }
 
     fun stop() {
+        started = false
         manager?.unregisterDeviceCallback(callback)
         close()
+    }
+
+    /** Connects to a Bluetooth MIDI keyboard, replacing the current device once it's open. */
+    fun openBluetooth(dev: BluetoothDevice, name: String) {
+        bluetooth = dev
+        bluetoothName = name
+        if (started) connectBluetooth(dev)
+    }
+
+    private fun connectBluetooth(dev: BluetoothDevice) {
+        val m = manager ?: return
+        m.openBluetoothDevice(dev, { opened ->
+            when {
+                opened == null -> {
+                    if (bluetooth == dev) bluetooth = null
+                    onBluetoothFailed(bluetoothName)
+                }
+                !started || bluetooth != dev -> opened.close() // left the app or picked another
+                else -> {
+                    if (device != null) close()
+                    attach(opened, opened.info)
+                }
+            }
+        }, handler)
     }
 
     private fun open(info: MidiDeviceInfo) {
@@ -69,12 +106,16 @@ class MidiInput(
                 dev.close()
                 return@openDevice
             }
-            device = dev
-            currentId = info.id
-            port = dev.openOutputPort(0)?.also { it.connect(receiver) }
-            val props = info.properties
-            onDeviceChanged(props.getString(MidiDeviceInfo.PROPERTY_NAME) ?: "MIDI device")
+            attach(dev, info)
         }, handler)
+    }
+
+    private fun attach(dev: MidiDevice, info: MidiDeviceInfo) {
+        device = dev
+        currentId = info.id
+        port = dev.openOutputPort(0)?.also { it.connect(receiver) }
+        val props = info.properties
+        onDeviceChanged(props.getString(MidiDeviceInfo.PROPERTY_NAME) ?: "MIDI device")
     }
 
     private fun close() {

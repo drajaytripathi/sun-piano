@@ -1,6 +1,8 @@
 package com.example.sunpiano.ui
 
 import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -62,6 +64,7 @@ import com.example.sunpiano.PianoViewModel
 import com.example.sunpiano.audio.Instruments
 import com.example.sunpiano.data.Recording
 import com.example.sunpiano.data.Settings
+import com.example.sunpiano.midi.BluetoothMidiScanner
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -128,7 +131,7 @@ fun PianoScreen(vm: PianoViewModel) {
 
     when (panel) {
         Panel.METRONOME -> MetronomeDialog(settings, metronome, beat, vm::setMetronome, vm::updateSettings) { panel = Panel.NONE }
-        Panel.SETTINGS -> SettingsDialog(settings, vm::updateSettings) { panel = Panel.NONE }
+        Panel.SETTINGS -> SettingsDialog(settings, vm::updateSettings, { BluetoothMidiSection(vm) }) { panel = Panel.NONE }
         Panel.RECORDINGS -> RecordingsDialog(vm) { panel = Panel.NONE }
         Panel.NONE -> Unit
     }
@@ -285,7 +288,12 @@ private fun MetronomeDialog(
 // ---------------------------------------------------------------- settings
 
 @Composable
-private fun SettingsDialog(s: Settings, update: ((Settings) -> Settings) -> Unit, onClose: () -> Unit) {
+private fun SettingsDialog(
+    s: Settings,
+    update: ((Settings) -> Settings) -> Unit,
+    bluetoothMidi: @Composable () -> Unit,
+    onClose: () -> Unit,
+) {
     Dialog(onDismissRequest = onClose) {
         Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface) {
             Column(
@@ -314,13 +322,51 @@ private fun SettingsDialog(s: Settings, update: ((Settings) -> Settings) -> Unit
                 SwitchRow("Touch position sets loudness", s.velocityFromTouch) { b -> update { it.copy(velocityFromTouch = b) } }
                 SwitchRow("Glissando (slide between keys)", s.glissando) { b -> update { it.copy(glissando = b) } }
                 SwitchRow("Keep screen on", s.keepScreenOn) { b -> update { it.copy(keepScreenOn = b) } }
+                bluetoothMidi()
                 Text(
-                    "Tip: a computer keyboard works too (Z–M row = C3, Q–U row = C4), as does any USB/Bluetooth MIDI keyboard.",
+                    "Tip: a computer keyboard works too (Z–M row = C3, Q–U row = C4), as does a USB MIDI keyboard: just plug it in.",
                     fontSize = 12.sp, color = Color.Gray,
                 )
                 TextButton(onClose, Modifier.align(Alignment.End)) { Text("Close") }
             }
         }
+    }
+}
+
+@Composable
+private fun BluetoothMidiSection(vm: PianoViewModel) {
+    if (!vm.bluetoothMidiSupported) return
+    val scanning by vm.bluetoothScanning.collectAsStateWithLifecycle()
+    val found by vm.bluetoothDevices.collectAsStateWithLifecycle()
+    val connected by vm.midiDevice.collectAsStateWithLifecycle()
+    var searched by remember { mutableStateOf(false) }
+    val askPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        vm.searchBluetoothMidi() // reports a refused permission itself
+    }
+    HorizontalDivider()
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+        Column(Modifier.weight(1f)) {
+            Text("Bluetooth MIDI keyboard")
+            Text(connected?.let { "Connected: $it" } ?: "Not connected", fontSize = 12.sp, color = Color.Gray)
+        }
+        OutlinedButton(
+            onClick = {
+                searched = true
+                if (vm.hasBluetoothPermissions()) vm.searchBluetoothMidi() else askPermission.launch(BluetoothMidiScanner.PERMISSIONS)
+            },
+            enabled = !scanning,
+        ) { Text(if (scanning) "Searching…" else "Find keyboards") }
+    }
+    found.forEach { d ->
+        TextButton({ searched = false; vm.connectBluetoothMidi(d) }, Modifier.fillMaxWidth()) {
+            Text("Connect to ${d.name}", Modifier.weight(1f))
+        }
+    }
+    if (searched && !scanning && found.isEmpty()) {
+        Text(
+            "No Bluetooth MIDI keyboards found. Switch yours on (or into Bluetooth mode) and search again.",
+            fontSize = 12.sp, color = Color.Gray,
+        )
     }
 }
 

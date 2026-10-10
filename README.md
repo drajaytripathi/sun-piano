@@ -8,7 +8,7 @@ Electronic piano for Android (Kotlin, Jetpack Compose, Material 3). minSdk 26, t
 - 8 synthesized instruments: Piano, Electric Piano, Honky-Tonk, Organ, Strings, Harpsichord, Marimba, Synth Lead
 - Metronome with BPM, time signature, tap tempo, beat indicator
 - Record / play back performances, rename, delete, export & share as Standard MIDI files
-- USB/Bluetooth MIDI keyboard input (notes + sustain CC64); computer keyboard (Z–M = C3, Q–U = C4, Space = sustain)
+- USB and Bluetooth LE MIDI keyboard input (notes + sustain CC64); Bluetooth keyboards are found and connected in Settings; computer keyboard (Z–M = C3, Q–U = C4, Space = sustain)
 - Transpose, tuning (A4 415–466 Hz), reverb, volume; all settings persisted with DataStore
 
 ## Build

@@ -1,6 +1,7 @@
 package com.example.sunpiano
 
 import android.app.Application
+import android.os.Build
 import android.os.SystemClock
 import android.view.KeyEvent
 import androidx.lifecycle.AndroidViewModel
@@ -13,6 +14,8 @@ import com.example.sunpiano.data.Recording
 import com.example.sunpiano.data.RecordingStore
 import com.example.sunpiano.data.Settings
 import com.example.sunpiano.data.SettingsRepository
+import com.example.sunpiano.midi.BluetoothMidiScanner
+import com.example.sunpiano.midi.FoundMidiDevice
 import com.example.sunpiano.midi.MidiInput
 import com.example.sunpiano.music.KeyboardLayout
 import com.example.sunpiano.music.NoteHolders
@@ -108,7 +111,17 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
         onNoteOff = { noteOff(it) },
         onSustain = { setSustain(SustainSources.Source.MIDI, it) },
         onDeviceChanged = { _midiDevice.value = it },
+        onBluetoothFailed = { _message.value = "Couldn't connect to $it. Make sure it's switched on and nearby, then try again." },
     )
+
+    private val bluetoothScanner = BluetoothMidiScanner(app).apply {
+        onScanFailed = { _message.value = "Couldn't search for Bluetooth devices. Try turning Bluetooth off and on." }
+    }
+    /** True if this device can use Bluetooth MIDI keyboards. */
+    val bluetoothMidiSupported: Boolean get() = bluetoothScanner.isSupported
+    /** Bluetooth MIDI keyboards found by the last search. */
+    val bluetoothDevices: StateFlow<List<FoundMidiDevice>> get() = bluetoothScanner.found
+    val bluetoothScanning: StateFlow<Boolean> get() = bluetoothScanner.scanning
 
     /** Settings changes made before the saved settings finished loading; null once loaded. */
     private var changesBeforeLoad: MutableList<(Settings) -> Settings>? = ArrayList()
@@ -152,11 +165,13 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
         if (_isRecording.value) stopRecording()
         releaseAll()
         setMetronome(false)
+        bluetoothScanner.stop()
         midi.stop()
         engine.stop()
     }
 
     override fun onCleared() {
+        bluetoothScanner.stop()
         midi.stop()
         engine.stop()
     }
@@ -215,6 +230,25 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
 
     fun releaseAll() {
         while (holders.keys.isNotEmpty()) noteOff(holders.keys.first())
+    }
+
+    // ---- Bluetooth MIDI ----
+    fun hasBluetoothPermissions() = bluetoothScanner.hasPermissions()
+
+    /** Searches for Bluetooth MIDI keyboards; the caller asks for the permissions first. */
+    fun searchBluetoothMidi() {
+        val problem = if (!bluetoothScanner.hasPermissions()) {
+            val permission = if (Build.VERSION.SDK_INT >= 31) "Nearby devices" else "Location"
+            "Sun Piano needs the $permission permission to find Bluetooth MIDI keyboards. You can allow it in the app's settings."
+        } else bluetoothScanner.problem()
+        if (problem != null) _message.value = problem else bluetoothScanner.start()
+    }
+
+    fun connectBluetoothMidi(found: FoundMidiDevice) {
+        bluetoothScanner.stop()
+        bluetoothScanner.clear()
+        val device = bluetoothScanner.device(found.address) ?: return
+        midi.openBluetooth(device, found.name)
     }
 
     fun setMetronome(on: Boolean) {
