@@ -93,6 +93,8 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
     // metronome state (audio thread only)
     private var wasMetro = false
     private var metroCount = 0
+    /** Beat length [metroCount] is counting down, in samples. */
+    private var metroPeriod = 0
     /** Beat index (within the bar) of the last click, or -1 before the first one. */
     private var metroBeat = -1
     private var clickPhase = 0f
@@ -293,6 +295,12 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
         wasMetro = on
         if (!on && clickEnv < 0.001f) return
         val samplesPerBeat = (sampleRate * 60.0 / bpm.coerceIn(20, 300)).toInt()
+        if (samplesPerBeat != metroPeriod) {
+            // tempo changed mid-beat: scale the rest of the beat, so a faster tempo starts now
+            // instead of after the old (maybe 2 s long) beat
+            if (metroPeriod > 0) metroCount = (metroCount.toLong() * samplesPerBeat / metroPeriod).toInt()
+            metroPeriod = samplesPerBeat
+        }
         val decay = exp(-1f / (0.012f * sampleRate))
         for (i in 0 until BLOCK) {
             if (on && metroCount <= 0) {
