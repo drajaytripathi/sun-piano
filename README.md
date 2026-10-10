@@ -1,5 +1,7 @@
 # Sun Piano
 
+![Sun Piano](logo/sun-piano-wordmark.png)
+
 Electronic piano for Android (Kotlin, Jetpack Compose, Material 3). minSdk 26, targetSdk 36.
 
 ## Features
@@ -16,6 +18,13 @@ Electronic piano for Android (Kotlin, Jetpack Compose, Material 3). minSdk 26, t
     ./gradlew testDebugUnitTest
     ./gradlew connectedDebugAndroidTest   # on a device: renders a demo passage to WAV
 
+## Logo
+An amber sun rising over piano keys, in the app's own colours. The `logo/` folder holds:
+- `sun-piano.svg` and `sun-piano-512.png`: the icon on a rounded square (app stores, avatars)
+- `sun-piano-wordmark.svg` and `.png`: icon and name on a dark panel
+- `sun-piano-mono.svg`: one colour, for print
+
+The app icon is an adaptive vector icon (`res/drawable/ic_launcher_*.xml`), with a one-colour layer for Android 13+ themed icons. The logo and icons are original artwork under the same license as the app.
 
 ## License
 Copyright (C) 2026 alimiracle
