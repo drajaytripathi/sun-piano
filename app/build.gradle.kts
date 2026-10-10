@@ -29,6 +29,11 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true }
+    // F-Droid can't read this Google-encrypted block, and its scanner rejects APKs that have it
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
 }
 
 dependencies {

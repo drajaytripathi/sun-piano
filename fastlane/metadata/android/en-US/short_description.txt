@@ -1,0 +1,1 @@
+Piano and synthesizer with 8 instruments, recording, metronome and MIDI input

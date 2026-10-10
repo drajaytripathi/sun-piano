@@ -1,0 +1,31 @@
+Sun Piano is an electronic piano for Android. Every sound is synthesized in real time by its own engine, so the app is small and needs no sample downloads.
+
+<b>Keyboard</b>
+<ul>
+<li>All 88 keys, multitouch, with a mini-map to jump anywhere on the keyboard</li>
+<li>Glissando: slide a finger across the keys to play each one</li>
+<li>Loudness from where you touch a key</li>
+<li>Note names as letters or Do-Re-Mi, 7 to 28 visible keys, octave buttons</li>
+<li>Tablets held upright (Android 16 and newer) show two keyboards stacked</li>
+</ul>
+
+<b>Sound</b>
+<ul>
+<li>8 instruments: Piano, Electric Piano, Honky-Tonk, Organ, Strings, Harpsichord, Marimba, Synth Lead</li>
+<li>24-voice polyphony, sustain pedal, stereo reverb, low-latency audio</li>
+<li>Transpose and tuning (A4 from 415 to 466 Hz)</li>
+</ul>
+
+<b>Practice and recording</b>
+<ul>
+<li>Metronome with tempo, time signature, tap tempo and beat indicator</li>
+<li>Record and play back what you play; rename, delete, and export or share recordings as standard MIDI files</li>
+</ul>
+
+<b>Connect a keyboard</b>
+<ul>
+<li>USB MIDI keyboards, and Bluetooth LE MIDI keyboards found and connected from Settings (notes and sustain pedal)</li>
+<li>A computer keyboard: Z to M and Q to U play two octaves, Space is the sustain pedal</li>
+</ul>
+
+No ads, no tracking, no internet access. Free software under the GNU GPL v3 or later.
