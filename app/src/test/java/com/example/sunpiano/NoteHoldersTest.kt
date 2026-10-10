@@ -60,4 +60,15 @@ class NoteHoldersTest {
         assertEquals(setOf(61, 64), h.liveSounding())
         assertEquals(setOf(67), h.playbackNotes)
     }
+
+    @Test fun isHeldWhileAnyHolderHoldsTheNote() {
+        assertEquals(false, h.isHeld(60))
+        h.press(60, 60)
+        h.playbackPress(60)
+        assertEquals(true, h.isHeld(60))
+        h.release(60)
+        assertEquals(true, h.isHeld(60))
+        h.playbackRelease(60)
+        assertEquals(false, h.isHeld(60))
+    }
 }

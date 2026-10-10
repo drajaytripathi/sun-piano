@@ -201,8 +201,11 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
     fun noteOn(key: Int, velocity: Int = 100) {
         if (key !in layout.low..layout.high) return
         val sounding = (key + _settings.value.transpose).coerceIn(0, 127)
+        // A second holder re-strikes the note. Record that as a note-off and a new note-on, so
+        // every note-on in the recording (and the exported .mid) has its own note-off.
+        if (holders.isHeld(sounding)) record(sounding, 0)
         holders.press(key, sounding)
-        engine.noteOn(sounding, velocity) // a second holder re-strikes the note
+        engine.noteOn(sounding, velocity)
         record(sounding, velocity)
         publishPressed()
     }

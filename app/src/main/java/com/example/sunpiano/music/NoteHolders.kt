@@ -20,6 +20,9 @@ class NoteHolders {
     /** Sounding notes currently held by live input. */
     fun liveSounding(): Set<Int> = presses.values.flatMapTo(HashSet()) { it }
 
+    /** True while anything holds [note]. */
+    fun isHeld(note: Int): Boolean = note in holders
+
     /** [key] was pressed and sounds [sounding] (the key plus the transpose at press time). */
     fun press(key: Int, sounding: Int) {
         presses.getOrPut(key) { ArrayDeque() }.addLast(sounding)
