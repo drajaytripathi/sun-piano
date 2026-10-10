@@ -3,6 +3,7 @@ package com.example.sunpiano
 import android.media.AudioManager
 import android.os.Bundle
 import android.view.KeyEvent
+import android.view.View
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -24,6 +25,18 @@ class MainActivity : ComponentActivity() {
         volumeControlStream = AudioManager.STREAM_MUSIC
         WindowCompat.setDecorFitsSystemWindows(window, false)
         setContent { PanTheme { PianoScreen(vm) } }
+        holdKeyFocus()
+    }
+
+    /**
+     * Keeps focus on the content view, even in touch mode. When nothing has focus, the first Space
+     * press after a screen touch is used up by Android to leave touch mode (it gives a view focus
+     * instead of delivering the key), so sustain wouldn't engage.
+     */
+    private fun holdKeyFocus() {
+        val content = findViewById<View>(android.R.id.content)
+        content.isFocusableInTouchMode = true
+        if (currentFocus == null) content.requestFocus()
     }
 
     override fun onStart() {
@@ -45,6 +58,7 @@ class MainActivity : ComponentActivity() {
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) {
+            holdKeyFocus()
             WindowInsetsControllerCompat(window, window.decorView).apply {
                 systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                 hide(WindowInsetsCompat.Type.systemBars())
