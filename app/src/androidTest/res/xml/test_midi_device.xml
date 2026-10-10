@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<devices>
+    <device manufacturer="Sun Piano" product="Test MIDI keyboard">
+        <output-port name="keys" />
+    </device>
+</devices>

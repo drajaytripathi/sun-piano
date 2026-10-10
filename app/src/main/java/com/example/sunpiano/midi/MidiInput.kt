@@ -102,7 +102,7 @@ class MidiInput(
         if (info.outputPortCount == 0) return
         manager?.openDevice(info, { dev ->
             if (dev == null) return@openDevice
-            if (device != null) {
+            if (!started || device != null) { // left the app while it opened, or another won
                 dev.close()
                 return@openDevice
             }
