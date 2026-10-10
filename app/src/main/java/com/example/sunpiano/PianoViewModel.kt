@@ -325,7 +325,7 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
                     if (wait > 0) delay(wait)
                     _progress.value = if (rec.durationMs > 0) e.timeMs.toFloat() / rec.durationMs else 0f
                     when {
-                        e.note == NoteEvent.PEDAL -> engine.setSustain(e.velocity > 0)
+                        e.note == NoteEvent.PEDAL -> setSustain(SustainSources.Source.PLAYBACK, e.velocity > 0)
                         e.velocity > 0 -> {
                             holders.playbackPress(e.note)
                             engine.noteOn(e.note, e.velocity)
@@ -340,7 +340,7 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
                 delay(400)
             } finally {
                 holders.playbackNotes.toList().forEach { n -> holders.playbackRelease(n)?.let { engine.noteOff(it) } }
-                engine.setSustain(_sustain.value)
+                setSustain(SustainSources.Source.PLAYBACK, false)
                 publishPressed()
                 _playingId.value = null
                 _progress.value = 0f
@@ -351,6 +351,8 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
     fun stopPlayback() {
         playbackJob?.cancel()
         playbackJob = null
+        // now, not in the job's cleanup, which runs later: a recording started next mustn't see it
+        setSustain(SustainSources.Source.PLAYBACK, false)
     }
 
     // ---- library ----

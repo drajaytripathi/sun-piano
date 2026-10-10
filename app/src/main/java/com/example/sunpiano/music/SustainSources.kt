@@ -1,12 +1,12 @@
 package com.example.sunpiano.music
 
 /**
- * Who is holding the sustain pedal. The on-screen Sustain button latches it, while Space and a
- * MIDI pedal hold it only while pressed. The pedal is down while any of them holds it, so letting
+ * Who is holding the sustain pedal. The on-screen Sustain button latches it, while Space, a
+ * MIDI pedal and a playing recording hold it only while pressed. The pedal is down while any of them holds it, so letting
  * go of one never lifts a pedal another one still holds.
  */
 class SustainSources {
-    enum class Source { BUTTON, SPACE, MIDI }
+    enum class Source { BUTTON, SPACE, MIDI, PLAYBACK }
 
     private val held = HashSet<Source>()
 
