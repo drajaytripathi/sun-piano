@@ -330,7 +330,16 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
         _firstWhite.value = value.coerceIn(0f, maxFirstWhite())
     }
 
-    private fun maxFirstWhite() = (layout.whiteCount - _settings.value.visibleKeys).coerceAtLeast(0).toFloat()
+    /** Keyboards stacked on screen (2 in portrait); each shows the [Settings.visibleKeys] above the one below it. */
+    private var keyboardRows = 1
+
+    fun setKeyboardRows(rows: Int) {
+        if (rows == keyboardRows) return
+        keyboardRows = rows
+        clampScroll()
+    }
+
+    private fun maxFirstWhite() = (layout.whiteCount - _settings.value.visibleKeys * keyboardRows).coerceAtLeast(0).toFloat()
     private fun clampScroll() = setFirstWhite(_firstWhite.value)
 
     /** Shifts the keyboard by one octave (7 white keys). */

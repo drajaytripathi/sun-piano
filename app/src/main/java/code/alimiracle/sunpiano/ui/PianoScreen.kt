@@ -7,6 +7,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -15,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -41,7 +44,9 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -85,47 +90,58 @@ fun PianoScreen(vm: PianoViewModel) {
 
     LocalView.current.keepScreenOn = settings.keepScreenOn
 
-    Column(
+    BoxWithConstraints(
         Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .windowInsetsPadding(WindowInsets.safeDrawing),
     ) {
-        ControlBar(
-            settings = settings,
-            sustain = sustain,
-            recording = recording,
-            metronome = metronome,
-            beat = beat,
-            midiName = midiName,
-            onInstrument = { id -> vm.updateSettings { it.copy(instrumentId = id) } },
-            onVolume = { v -> vm.updateSettings { it.copy(volume = v) } },
-            onSustain = vm::toggleSustainButton,
-            onRecord = vm::toggleRecording,
-            onOctave = vm::shiftOctave,
-            onPanel = { panel = it },
-        )
-        KeyboardOverview(
-            layout = vm.layout,
-            pressed = pressed,
-            firstWhite = firstWhite,
-            visibleKeys = settings.visibleKeys,
-            onScroll = vm::setFirstWhite,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp).clip(RoundedCornerShape(4.dp)),
-        )
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            PianoKeyboard(
+        // In portrait (Android 16+ ignores the landscape lock on tablets) one keyboard would have very
+        // long, narrow keys, so show two: the upper one continues where the lower one ends.
+        val portrait = maxHeight > maxWidth
+        val rows = if (portrait) 2 else 1
+        SideEffect { vm.setKeyboardRows(rows) }
+        Column(Modifier.fillMaxSize()) {
+            ControlBar(
+                wrap = portrait,
+                settings = settings,
+                sustain = sustain,
+                recording = recording,
+                metronome = metronome,
+                beat = beat,
+                midiName = midiName,
+                onInstrument = { id -> vm.updateSettings { it.copy(instrumentId = id) } },
+                onVolume = { v -> vm.updateSettings { it.copy(volume = v) } },
+                onSustain = vm::toggleSustainButton,
+                onRecord = vm::toggleRecording,
+                onOctave = vm::shiftOctave,
+                onPanel = { panel = it },
+            )
+            KeyboardOverview(
                 layout = vm.layout,
                 pressed = pressed,
                 firstWhite = firstWhite,
-                visibleKeys = settings.visibleKeys,
-                showLabels = settings.showLabels,
-                solfege = settings.solfege,
-                glissando = settings.glissando,
-                velocityFromTouch = settings.velocityFromTouch,
-                onNoteOn = vm::noteOn,
-                onNoteOff = vm::noteOff,
+                visibleKeys = settings.visibleKeys * rows,
+                onScroll = vm::setFirstWhite,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp).clip(RoundedCornerShape(4.dp)),
             )
+            for (row in rows - 1 downTo 0) key(row) { // the bottom keyboard keeps its touches when rotating
+                if (row < rows - 1) Box(Modifier.fillMaxWidth().height(10.dp))
+                Box(Modifier.weight(1f).fillMaxWidth()) {
+                    PianoKeyboard(
+                        layout = vm.layout,
+                        pressed = pressed,
+                        firstWhite = firstWhite + row * settings.visibleKeys,
+                        visibleKeys = settings.visibleKeys,
+                        showLabels = settings.showLabels,
+                        solfege = settings.solfege,
+                        glissando = settings.glissando,
+                        velocityFromTouch = settings.velocityFromTouch,
+                        onNoteOn = vm::noteOn,
+                        onNoteOff = vm::noteOff,
+                    )
+                }
+            }
         }
     }
 
@@ -148,6 +164,7 @@ fun PianoScreen(vm: PianoViewModel) {
 
 @Composable
 private fun ControlBar(
+    wrap: Boolean,
     settings: Settings,
     sustain: Boolean,
     recording: Boolean,
@@ -162,14 +179,8 @@ private fun ControlBar(
     onPanel: (Panel) -> Unit,
 ) {
     Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 2.dp) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 10.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
+        // too narrow for one line (portrait): wrap onto more lines instead of scrolling
+        val content: @Composable () -> Unit = {
             InstrumentPicker(settings.instrumentId, onInstrument)
 
             Text("Vol", fontSize = 12.sp, color = Color.Gray)
@@ -198,6 +209,23 @@ private fun ControlBar(
             if (midiName != null) {
                 Text("MIDI: $midiName", fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
+        }
+        if (wrap) {
+            FlowRow(
+                Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                itemVerticalAlignment = Alignment.CenterVertically,
+            ) { content() }
+        } else {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) { content() }
         }
     }
 }
