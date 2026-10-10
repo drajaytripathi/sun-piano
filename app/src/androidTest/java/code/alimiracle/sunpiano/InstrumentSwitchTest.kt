@@ -50,4 +50,17 @@ class InstrumentSwitchTest {
         SystemClock.sleep(300) // Lead's build finishes meanwhile
         assertSame("a late build undid the newer choice", Instruments.MARIMBA, current(engine))
     }
+
+    /** A picked instrument is built before the queued prebuilds of every engine (TABLETS.md, improvement 3). */
+    @Test
+    fun aPickedInstrumentDoesNotWaitForPrebuilds() {
+        repeat(6) { SynthEngine() } // queues 6 × 8 background builds
+        val engine = SynthEngine()
+        val start = SystemClock.uptimeMillis()
+        engine.setInstrument(Instruments.ORGAN)
+        waitForInstrument(engine, Instruments.ORGAN)
+        val ms = SystemClock.uptimeMillis() - start
+        Log.i("InstrumentSwitchTest", "Organ took over after $ms ms")
+        assertTrue("Organ waited $ms ms behind the prebuilds", ms < 500)
+    }
 }

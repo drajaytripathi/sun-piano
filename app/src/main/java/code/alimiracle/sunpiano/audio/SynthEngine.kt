@@ -7,7 +7,9 @@ import android.util.Log
 import code.alimiracle.sunpiano.music.Notes
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.concurrent.Executors
+import java.util.concurrent.LinkedBlockingDeque
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -50,13 +52,21 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
         /** Pause between attempts to rebuild a failed audio output, so a dead device doesn't spin. */
         private const val RETRY_DELAY_MS = 200L
 
+        /** Pending wavetable builds: [buildLater] adds to the back, [buildNow] to the front. */
+        private val tableQueue = LinkedBlockingDeque<Runnable>()
+
         /** Builds wavetables off the main thread; computing one instrument's takes tens of ms. */
-        private val tableBuilder = Executors.newSingleThreadExecutor { r ->
+        private val tableBuilder = ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, tableQueue) { r ->
             Thread(r, "pan-tables").apply {
                 isDaemon = true
                 priority = Thread.MIN_PRIORITY
             }
-        }
+        }.apply { prestartAllCoreThreads() }
+
+        private fun buildLater(task: Runnable) = tableQueue.offerLast(task)
+
+        /** Runs [task] before every queued prebuild, so a picked instrument doesn't wait behind them. */
+        private fun buildNow(task: Runnable) = tableQueue.offerFirst(task)
     }
 
     private sealed interface Cmd
@@ -94,7 +104,7 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
 
     init {
         // have every instrument ready before it's picked
-        for (ins in Instruments.ALL) tableBuilder.execute { bankFor(ins) }
+        for (ins in Instruments.ALL) buildLater { bankFor(ins) }
     }
 
     /** The instrument new notes use (the one last set, once its wavetables are built). */
@@ -133,7 +143,7 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
                 return
             }
         }
-        tableBuilder.execute {
+        buildNow {
             val built = bankFor(instrument)
             synchronized(bankLock) { if (wanted === instrument) bank = built }
         }
