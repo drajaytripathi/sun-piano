@@ -1,13 +1,16 @@
 package code.alimiracle.sunpiano.ui
 
+import android.app.Activity
 import android.content.Intent
+import android.content.res.Configuration
+import android.graphics.Point
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -56,6 +59,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
@@ -90,15 +94,16 @@ fun PianoScreen(vm: PianoViewModel) {
 
     LocalView.current.keepScreenOn = settings.keepScreenOn
 
-    BoxWithConstraints(
+    // On a device held in portrait (Android 16+ ignores the landscape lock on tablets) one keyboard
+    // would have very long, narrow keys, so show two: the upper one continues where the lower one ends.
+    // Decided by the display, not the window, so split screen on a landscape tablet keeps one keyboard.
+    val portrait = displayIsPortrait()
+    Box(
         Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .windowInsetsPadding(WindowInsets.safeDrawing),
     ) {
-        // In portrait (Android 16+ ignores the landscape lock on tablets) one keyboard would have very
-        // long, narrow keys, so show two: the upper one continues where the lower one ends.
-        val portrait = maxHeight > maxWidth
         val rows = if (portrait) 2 else 1
         SideEffect { vm.setKeyboardRows(rows) }
         Column(Modifier.fillMaxSize()) {
@@ -159,6 +164,26 @@ fun PianoScreen(vm: PianoViewModel) {
             title = { Text("Something went wrong") },
             text = { Text(text) },
         )
+    }
+}
+
+/** Whether the whole display (not just this app's window) is taller than wide. */
+@Composable
+private fun displayIsPortrait(): Boolean {
+    val view = LocalView.current
+    val configuration = LocalConfiguration.current // changes on rotation, so this is re-read then
+    return remember(configuration, view) {
+        val activity = view.context as? Activity
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && activity != null) {
+            val bounds = activity.windowManager.maximumWindowMetrics.bounds
+            bounds.height() > bounds.width()
+        } else {
+            val display = view.display ?: return@remember configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+            val size = Point()
+            @Suppress("DEPRECATION")
+            display.getRealSize(size)
+            size.y > size.x
+        }
     }
 }
 
