@@ -10,6 +10,7 @@ import android.media.midi.MidiOutputPort
 import android.media.midi.MidiReceiver
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 
 /**
  * Listens to one MIDI controller and forwards channel messages: the first USB (or already shared)
@@ -23,6 +24,10 @@ class MidiInput(
     private val onDeviceChanged: (name: String?, bluetooth: Boolean) -> Unit,
     private val onBluetoothFailed: (name: String) -> Unit = {},
 ) {
+    private companion object {
+        const val TAG = "MidiInput"
+    }
+
     private val parser = MidiParser(onNoteOn, onNoteOff, onSustain)
     private val handler = Handler(Looper.getMainLooper())
     private val manager: MidiManager? =
@@ -100,6 +105,16 @@ class MidiInput(
 
     private fun open(info: MidiDeviceInfo) {
         if (info.outputPortCount == 0) return
+        // The device list can be stale: a device that just went away (e.g. the Bluetooth keyboard
+        // we closed on leaving the app) may still be listed, and opening it throws.
+        try {
+            openListed(info)
+        } catch (e: RuntimeException) {
+            Log.w(TAG, "couldn't open MIDI device ${info.id}", e)
+        }
+    }
+
+    private fun openListed(info: MidiDeviceInfo) {
         manager?.openDevice(info, { dev ->
             if (dev == null) return@openDevice
             if (!started || device != null) { // left the app while it opened, or another won
