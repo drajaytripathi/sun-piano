@@ -60,7 +60,12 @@ class MidiParser(
                     when (type) {
                         0x90 -> if (data[1] > 0) noteOn(data[0], data[1]) else noteOff(data[0])
                         0x80 -> noteOff(data[0])
-                        0xB0 -> if (data[0] == 64) sustain(data[1] >= 64)
+                        0xB0 -> when (data[0]) {
+                            64 -> sustain(data[1] >= 64)
+                            // All Sound Off, All Notes Off: some devices send these instead of
+                            // note-offs (a panic button, or switching octave mid-note)
+                            120, 123 -> releaseNotes()
+                        }
                     }
                 }
             }
@@ -76,10 +81,15 @@ class MidiParser(
         inSysex = false
         skip = 0
         count = 0
+        releaseNotes()
+        if (pedalDown) sustain(false)
+    }
+
+    /** Note-off for every note the device holds. The pedal stays as it is, as MIDI specifies. */
+    private fun releaseNotes() {
         val notes = held.toList()
         held.clear()
         notes.forEach { onNoteOff(it) }
-        if (pedalDown) sustain(false)
     }
 
     // Only one note-on per note-off is passed on, so a device repeating a message can't leave a

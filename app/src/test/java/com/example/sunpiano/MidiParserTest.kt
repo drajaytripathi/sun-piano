@@ -93,4 +93,22 @@ class MidiParserTest {
         parser.parse(bytes(0x90, 60, 100, 0x90, 60, 90, 0x80, 60, 0, 0x80, 60, 0, 0x80, 61, 0))
         assertEquals(listOf("on 60 100", "off 60"), log)
     }
+
+    @Test fun allNotesOffReleasesHeldNotesButNotThePedal() {
+        parser.parse(bytes(0x90, 60, 100, 0x90, 64, 90, 0xB0, 64, 127))
+        log.clear()
+        parser.parse(bytes(0xB0, 123, 0)) // All Notes Off
+        assertEquals(listOf("off 60", "off 64"), log)
+        log.clear()
+        parser.parse(bytes(0x80, 60, 0)) // a late note-off changes nothing
+        parser.releaseAll()
+        assertEquals(listOf("pedal up"), log) // the pedal was still down
+    }
+
+    @Test fun allSoundOffReleasesHeldNotes() {
+        parser.parse(bytes(0x91, 72, 100)) // any channel
+        log.clear()
+        parser.parse(bytes(0xB1, 120, 0)) // All Sound Off
+        assertEquals(listOf("off 72"), log)
+    }
 }
