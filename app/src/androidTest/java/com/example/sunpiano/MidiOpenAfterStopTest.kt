@@ -24,7 +24,7 @@ class MidiOpenAfterStopTest {
         val reported = Collections.synchronizedList(ArrayList<String?>())
         lateinit var input: MidiInput
         instrumentation.runOnMainSync {
-            input = MidiInput(context, { _, _ -> }, {}, {}, onDeviceChanged = { reported += it })
+            input = MidiInput(context, { _, _ -> }, {}, {}, onDeviceChanged = { name, _ -> reported += name })
             input.start() // starts opening the device; the answer comes later on this thread
             input.stop()  // the app is left before it arrives
         }

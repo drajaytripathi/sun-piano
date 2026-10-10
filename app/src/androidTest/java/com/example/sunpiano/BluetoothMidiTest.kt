@@ -85,7 +85,7 @@ class BluetoothMidiTest {
             assertEquals("SunPiano Test Keys", keyboard.name)
             onMain { vm.connectBluetoothMidi(keyboard) }
             // (the test APK's virtual MIDI keyboard may be open until the Bluetooth one replaces it)
-            waitUntil("the connection", 20_000) { vm.midiDevice.value.orEmpty().contains("SunPiano Test Keys") }
+            waitUntil("the connection", 20_000) { vm.bluetoothMidiDevice.value.orEmpty().contains("SunPiano Test Keys") }
             assertTrue("search results kept after connecting", vm.bluetoothDevices.value.isEmpty())
             waitUntil("middle C from the keyboard", 10_000) { 60 in vm.pressed.value }
             waitUntil("the keyboard's sustain pedal", 10_000) { vm.sustain.value }
@@ -95,7 +95,7 @@ class BluetoothMidiTest {
             onMain { vm.onBackground() }
             assertNull("still connected after leaving the app", vm.midiDevice.value)
             onMain { vm.onForeground() }
-            waitUntil("reconnection after returning", 20_000) { vm.midiDevice.value.orEmpty().contains("SunPiano Test Keys") }
+            waitUntil("reconnection after returning", 20_000) { vm.bluetoothMidiDevice.value.orEmpty().contains("SunPiano Test Keys") }
             waitUntil("middle C after reconnecting", 10_000) { 60 in vm.pressed.value }
         }
     }

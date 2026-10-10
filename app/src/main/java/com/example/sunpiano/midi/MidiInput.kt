@@ -20,7 +20,7 @@ class MidiInput(
     onNoteOn: (note: Int, velocity: Int) -> Unit,
     onNoteOff: (note: Int) -> Unit,
     onSustain: (down: Boolean) -> Unit,
-    private val onDeviceChanged: (name: String?) -> Unit,
+    private val onDeviceChanged: (name: String?, bluetooth: Boolean) -> Unit,
     private val onBluetoothFailed: (name: String) -> Unit = {},
 ) {
     private val parser = MidiParser(onNoteOn, onNoteOff, onSustain)
@@ -115,7 +115,7 @@ class MidiInput(
         currentId = info.id
         port = dev.openOutputPort(0)?.also { it.connect(receiver) }
         val props = info.properties
-        onDeviceChanged(props.getString(MidiDeviceInfo.PROPERTY_NAME) ?: "MIDI device")
+        onDeviceChanged(props.getString(MidiDeviceInfo.PROPERTY_NAME) ?: "MIDI device", info.type == MidiDeviceInfo.TYPE_BLUETOOTH)
     }
 
     private fun close() {
@@ -128,6 +128,6 @@ class MidiInput(
         port = null
         device = null
         currentId = -1
-        onDeviceChanged(null)
+        onDeviceChanged(null, false)
     }
 }

@@ -338,7 +338,7 @@ private fun BluetoothMidiSection(vm: PianoViewModel) {
     if (!vm.bluetoothMidiSupported) return
     val scanning by vm.bluetoothScanning.collectAsStateWithLifecycle()
     val found by vm.bluetoothDevices.collectAsStateWithLifecycle()
-    val connected by vm.midiDevice.collectAsStateWithLifecycle()
+    val connected by vm.bluetoothMidiDevice.collectAsStateWithLifecycle()
     var searched by remember { mutableStateOf(false) }
     val askPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         vm.searchBluetoothMidi() // reports a refused permission itself

@@ -102,7 +102,11 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private val _midiDevice = MutableStateFlow<String?>(null)
+    /** Name of the open MIDI device (USB, Bluetooth or virtual), or null. */
     val midiDevice: StateFlow<String?> = _midiDevice.asStateFlow()
+    private val _bluetoothMidiDevice = MutableStateFlow<String?>(null)
+    /** Name of the open MIDI device if it's a Bluetooth one, or null. */
+    val bluetoothMidiDevice: StateFlow<String?> = _bluetoothMidiDevice.asStateFlow()
 
     private val _firstWhite = MutableStateFlow(layout.whiteIndexOf(48).toFloat())
     /** Left edge of the visible keyboard, in white-key units. */
@@ -120,7 +124,10 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
         onNoteOn = { n, v -> noteOn(n, v) },
         onNoteOff = { noteOff(it) },
         onSustain = { setSustain(SustainSources.Source.MIDI, it) },
-        onDeviceChanged = { _midiDevice.value = it },
+        onDeviceChanged = { name, bluetooth ->
+            _midiDevice.value = name
+            _bluetoothMidiDevice.value = name.takeIf { bluetooth }
+        },
         onBluetoothFailed = { _message.value = "Couldn't connect to $it. Make sure it's switched on and nearby, then try again." },
     )
 
