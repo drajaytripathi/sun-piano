@@ -16,3 +16,14 @@ Electronic piano for Android (Kotlin, Jetpack Compose, Material 3). minSdk 26, t
     ./gradlew testDebugUnitTest
     ./gradlew connectedDebugAndroidTest   # on a device: renders a demo passage to WAV
 
+
+## License
+Copyright (C) 2026 alimiracle
+
+Sun Piano is free software: you can redistribute it and/or modify it under the terms of the
+GNU General Public License as published by the Free Software Foundation, either version 3 of
+the License, or (at your option) any later version.
+
+Sun Piano is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
+even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+[LICENSE](LICENSE) file for the full text of the GNU General Public License v3.
