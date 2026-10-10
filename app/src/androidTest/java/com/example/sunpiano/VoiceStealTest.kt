@@ -41,7 +41,7 @@ class VoiceStealTest {
     fun stealingAVoiceDoesNotClick() {
         val output = CapturingOutput(48000 * 4)
         val engine = SynthEngine { output }
-        engine.setInstrument(Instruments.ORGAN) // steady tone: an abrupt stop would stand out
+        engine.useInstrument(Instruments.ORGAN) // steady tone: an abrupt stop would stand out
         engine.reverbLevel = 0f
         engine.volume = 1f
         engine.start()

@@ -31,7 +31,7 @@ class SustainRestartTest {
         val output = LevelOutput()
         // Organ: holds at full level while sustained, silent ~0.4 s after release otherwise
         val engine = SynthEngine { output }
-        engine.setInstrument(Instruments.ORGAN)
+        engine.useInstrument(Instruments.ORGAN)
         engine.reverbLevel = 0f
         engine.setSustain(sustain)
         engine.start()

@@ -139,7 +139,7 @@ class AudioRecoveryTest {
                 override fun release() {}
             }
         }
-        engine.setInstrument(Instruments.ORGAN)
+        engine.useInstrument(Instruments.ORGAN)
         engine.reverbLevel = 0f
         engine.start()
         try {

@@ -31,7 +31,7 @@ class ReverbClearTest {
         val sink = Sink()
         val engine = SynthEngine { sink }
         engine.reverbLevel = 0.5f
-        engine.setInstrument(Instruments.ORGAN)
+        engine.useInstrument(Instruments.ORGAN)
         engine.metronomeOn = true
         engine.start()
         engine.noteOn(60, 120); engine.noteOn(64, 120); engine.noteOn(67, 120)

@@ -46,7 +46,7 @@ class PianoRenderTest {
 
     private fun render(fileName: String): FloatArray {
         val engine = SynthEngine()
-        engine.setInstrument(Instruments.GRAND)
+        engine.useInstrument(Instruments.GRAND)
         engine.volume = 0.8f
         engine.reverbLevel = 0.2f
         val rate = engine.sampleRate

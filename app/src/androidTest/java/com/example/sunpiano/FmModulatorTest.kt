@@ -18,7 +18,7 @@ class FmModulatorTest {
     /** Renders [seconds] of [note] on Marimba (FM, modulator at 4x the note) through the real engine; returns the left channel. */
     private fun renderMarimba(note: Int, seconds: Double): Pair<FloatArray, Int> {
         val engine = SynthEngine()
-        engine.setInstrument(Instruments.MARIMBA)
+        engine.useInstrument(Instruments.MARIMBA)
         engine.reverbLevel = 0f
         engine.noteOn(note, 100)
         val blocks = (seconds * engine.sampleRate / SynthEngine.BLOCK).toInt()

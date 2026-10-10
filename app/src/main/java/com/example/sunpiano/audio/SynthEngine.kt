@@ -5,7 +5,9 @@ import android.media.AudioTrack
 import android.os.Process
 import android.util.Log
 import com.example.sunpiano.music.Notes
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.Executors
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -47,6 +49,14 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
         private const val TAG = "SynthEngine"
         /** Pause between attempts to rebuild a failed audio output, so a dead device doesn't spin. */
         private const val RETRY_DELAY_MS = 200L
+
+        /** Builds wavetables off the main thread; computing one instrument's takes tens of ms. */
+        private val tableBuilder = Executors.newSingleThreadExecutor { r ->
+            Thread(r, "pan-tables").apply {
+                isDaemon = true
+                priority = Thread.MIN_PRIORITY
+            }
+        }
     }
 
     private sealed interface Cmd
@@ -76,8 +86,19 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
     }
 
     private val commands = ConcurrentLinkedQueue<Cmd>()
-    private val bankCache = HashMap<String, Bank>()
+    private val bankCache = ConcurrentHashMap<String, Bank>()
     @Volatile private var bank: Bank = bankFor(Instruments.GRAND)
+    /** Guards [wanted] and [bank] together, so a late-finishing build can't undo a newer choice. */
+    private val bankLock = Any()
+    private var wanted: Instrument = Instruments.GRAND
+
+    init {
+        // have every instrument ready before it's picked
+        for (ins in Instruments.ALL) tableBuilder.execute { bankFor(ins) }
+    }
+
+    /** The instrument new notes use (the one last set, once its wavetables are built). */
+    val currentInstrument: Instrument get() = bank.instrument
 
     private val voices = Array(MAX_VOICES + FADE_SLOTS) { Voice() }
     private var orderCounter = 0L
@@ -103,8 +124,19 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
     private var clickAmp = 0f
 
     // ---- control API ----
+    /** Never blocks: if [instrument]'s wavetables aren't built yet, it takes over once they are. */
     fun setInstrument(instrument: Instrument) {
-        bank = bankFor(instrument)
+        synchronized(bankLock) {
+            wanted = instrument
+            bankCache[instrument.id]?.let {
+                bank = it
+                return
+            }
+        }
+        tableBuilder.execute {
+            val built = bankFor(instrument)
+            synchronized(bankLock) { if (wanted === instrument) bank = built }
+        }
     }
 
     fun noteOn(note: Int, velocity: Int = 100) {
@@ -124,7 +156,7 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
         commands.add(AllOff)
     }
 
-    @Synchronized
+    /** Builds on the calling thread if needed: the constructor (Piano only) or [tableBuilder]. */
     private fun bankFor(instrument: Instrument): Bank =
         bankCache.getOrPut(instrument.id) { Bank(instrument, buildTables(instrument, sampleRate)) }
 
