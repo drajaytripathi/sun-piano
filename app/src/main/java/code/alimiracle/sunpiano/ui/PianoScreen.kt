@@ -299,7 +299,8 @@ private fun MetronomeDialog(
         confirmButton = { TextButton(onClose) { Text("Done") } },
         title = { Text("Metronome") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            // scrolls on a short (phone landscape) screen, where Start would otherwise be cut off
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton({ update { it.copy(bpm = (it.bpm - 1).coerceIn(30, 240)) } }) { Text("−") }
                     Text("${s.bpm} BPM", fontSize = 22.sp, fontWeight = FontWeight.Bold)
@@ -470,7 +471,8 @@ private fun RecordingsDialog(vm: PianoViewModel, onClose: () -> Unit) {
                             Text(rec.name, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text("%.1f s · %d notes".format(rec.durationMs / 1000f, rec.events.count { it.velocity > 0 && it.note >= 0 }), fontSize = 12.sp, color = Color.Gray)
                             if (playingId == rec.id) LinearProgressIndicator({ progress }, Modifier.fillMaxWidth().padding(vertical = 4.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            // wraps onto a second line in a narrow (phone) dialog instead of squeezing a button
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 TextButton({ vm.togglePlayback(rec) }) { Text(if (playingId == rec.id) "■ Stop" else "▶ Play") }
                                 TextButton({ renaming = rec }) { Text("Rename") }
                                 TextButton({
