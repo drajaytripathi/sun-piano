@@ -93,7 +93,8 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
     // metronome state (audio thread only)
     private var wasMetro = false
     private var metroCount = 0
-    private var metroBeat = 0
+    /** Beat index (within the bar) of the last click, or -1 before the first one. */
+    private var metroBeat = -1
     private var clickPhase = 0f
     private var clickInc = 0f
     private var clickEnv = 0f
@@ -283,7 +284,7 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
         val on = metronomeOn
         if (on && !wasMetro) {
             metroCount = 0
-            metroBeat = 0
+            metroBeat = -1
         }
         wasMetro = on
         if (!on && clickEnv < 0.001f) return
@@ -291,13 +292,14 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
         val decay = exp(-1f / (0.012f * sampleRate))
         for (i in 0 until BLOCK) {
             if (on && metroCount <= 0) {
+                // wrap with the bar length in effect now, so a change of beats-per-bar applies at once
+                metroBeat = (metroBeat + 1).let { if (it >= beatsPerBar.coerceAtLeast(1)) 0 else it }
                 val accent = metroBeat == 0
                 clickInc = (if (accent) 1500f else 1000f) / sampleRate
                 clickAmp = if (accent) 0.5f else 0.35f
                 clickEnv = 1f
                 clickPhase = 0f
                 onBeat?.invoke(metroBeat)
-                metroBeat = (metroBeat + 1) % beatsPerBar.coerceAtLeast(1)
                 metroCount = samplesPerBeat
             }
             if (on) metroCount--
