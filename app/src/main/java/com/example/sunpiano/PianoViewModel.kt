@@ -1,9 +1,19 @@
 package com.example.sunpiano
 
 import android.app.Application
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.view.KeyEvent
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.sunpiano.audio.Instruments
@@ -123,6 +133,33 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
     val bluetoothDevices: StateFlow<List<FoundMidiDevice>> get() = bluetoothScanner.found
     val bluetoothScanning: StateFlow<Boolean> get() = bluetoothScanner.scanning
 
+    private val audioManager = app.getSystemService(AudioManager::class.java)
+
+    /** Headphones unplugged (or Bluetooth audio gone): stop what would now blare from the speaker. */
+    private val noisyReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) onAudioBecomingNoisy()
+        }
+    }
+    private var noisyRegistered = false
+
+    /**
+     * Recording playback takes transient audio focus, so music apps pause meanwhile and resume
+     * afterwards, and it stops if another app (a call, a video) takes focus. Live playing and the
+     * metronome don't take focus, so you can still play along with music.
+     */
+    private val playbackFocus = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+        .setAudioAttributes(
+            AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                .build(),
+        )
+        .setOnAudioFocusChangeListener({ change ->
+            if (change == AudioManager.AUDIOFOCUS_LOSS || change == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) stopPlayback()
+        }, Handler(Looper.getMainLooper()))
+        .build()
+
     /** Settings changes made before the saved settings finished loading; null once loaded. */
     private var changesBeforeLoad: MutableList<(Settings) -> Settings>? = ArrayList()
 
@@ -155,6 +192,10 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
         foreground = true
         engine.start()
         midi.start()
+        ContextCompat.registerReceiver(
+            getApplication(), noisyReceiver, IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY), ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
+        noisyRegistered = true
     }
 
     fun onBackground() {
@@ -168,9 +209,22 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
         bluetoothScanner.stop()
         midi.stop()
         engine.stop()
+        unregisterNoisy()
+    }
+
+    private fun unregisterNoisy() {
+        if (!noisyRegistered) return
+        noisyRegistered = false
+        getApplication<Application>().unregisterReceiver(noisyReceiver)
+    }
+
+    fun onAudioBecomingNoisy() {
+        stopPlayback()
+        setMetronome(false)
     }
 
     override fun onCleared() {
+        unregisterNoisy()
         bluetoothScanner.stop()
         midi.stop()
         engine.stop()
@@ -319,6 +373,10 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
     private fun play(rec: Recording) {
         stopPlayback()
         if (_isRecording.value) stopRecording()
+        if (audioManager.requestAudioFocus(playbackFocus) == AudioManager.AUDIOFOCUS_REQUEST_FAILED) {
+            _message.value = "Can't play the recording right now: another app, such as a call, is using the sound."
+            return
+        }
         _playingId.value = rec.id
         playbackJob = viewModelScope.launch {
             try {
@@ -345,8 +403,12 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
                 holders.playbackNotes.toList().forEach { n -> holders.playbackRelease(n)?.let { engine.noteOff(it) } }
                 setSustain(SustainSources.Source.PLAYBACK, false)
                 publishPressed()
-                _playingId.value = null
-                _progress.value = 0f
+                // unless another recording has started playing meanwhile
+                if (playbackJob == null || playbackJob === coroutineContext[Job]) {
+                    _playingId.value = null
+                    _progress.value = 0f
+                    audioManager.abandonAudioFocusRequest(playbackFocus)
+                }
             }
         }
     }
