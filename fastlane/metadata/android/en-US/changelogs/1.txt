@@ -1,1 +1,7 @@
-First release.
+First release (0.9):
+• 88-key multitouch keyboard with glissando, touch loudness and note names; two keyboards on upright tablets
+• 8 synthesized instruments, sustain pedal, reverb, transpose and tuning
+• Metronome with tap tempo
+• Recordings keep every note's instrument and their settings
+• Share as audio (.m4a) or MIDI; import MIDI files
+• USB and Bluetooth MIDI keyboards, and computer keyboards
