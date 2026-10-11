@@ -1,16 +1,20 @@
 package code.alimiracle.sunpiano.data
 
 import android.content.Context
+import android.util.Log
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import org.json.JSONObject
+import java.io.IOException
 
 data class Settings(
     val instrumentId: String = "grand",
@@ -93,24 +97,40 @@ class SettingsRepository(private val context: Context) {
         val metroVol = floatPreferencesKey("metro_volume")
     }
 
-    val flow: Flow<Settings> = context.dataStore.data.map { p -> p.toSettings() }
+    // An unreadable or corrupt file falls back to the defaults (and a later save repairs it)
+    // instead of failing every launch; anything else is a bug and must surface.
+    val flow: Flow<Settings> = context.dataStore.data
+        .catch { e ->
+            if (e is IOException) {
+                Log.e("SunPiano", "couldn't read settings, using defaults", e)
+                emit(emptyPreferences())
+            } else {
+                throw e
+            }
+        }
+        .map { p -> p.toSettings() }
 
     suspend fun save(s: Settings) {
-        context.dataStore.edit {
-            it[K.instrument] = s.instrumentId
-            it[K.volume] = s.volume
-            it[K.reverb] = s.reverb
-            it[K.transpose] = s.transpose
-            it[K.tuning] = s.tuning
-            it[K.visibleKeys] = s.visibleKeys
-            it[K.showLabels] = s.showLabels
-            it[K.solfege] = s.solfege
-            it[K.velocity] = s.velocityFromTouch
-            it[K.glissando] = s.glissando
-            it[K.keepOn] = s.keepScreenOn
-            it[K.bpm] = s.bpm
-            it[K.beats] = s.beatsPerBar
-            it[K.metroVol] = s.metronomeVolume
+        try {
+            context.dataStore.edit {
+                it[K.instrument] = s.instrumentId
+                it[K.volume] = s.volume
+                it[K.reverb] = s.reverb
+                it[K.transpose] = s.transpose
+                it[K.tuning] = s.tuning
+                it[K.visibleKeys] = s.visibleKeys
+                it[K.showLabels] = s.showLabels
+                it[K.solfege] = s.solfege
+                it[K.velocity] = s.velocityFromTouch
+                it[K.glissando] = s.glissando
+                it[K.keepOn] = s.keepScreenOn
+                it[K.bpm] = s.bpm
+                it[K.beats] = s.beatsPerBar
+                it[K.metroVol] = s.metronomeVolume
+            }
+        } catch (e: IOException) {
+            // a full disk and the like: the change is lost, but the app must live on
+            Log.e("SunPiano", "couldn't save settings", e)
         }
     }
 
