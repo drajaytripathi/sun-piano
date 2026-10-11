@@ -117,8 +117,8 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
     private var playbackJob: Job? = null
 
     private var recStart = -1L
-    /** The instrument of the recording's first note. */
-    private var recInstrument: String? = null
+    /** All settings when recording started, saved with the recording. */
+    private var recSettings: Settings? = null
     private val recEvents = ArrayList<NoteEvent>()
 
     private val midi = MidiInput(
@@ -352,8 +352,9 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
         if (!_isRecording.value) return
         val now = SystemClock.elapsedRealtime()
         if (recStart < 0) recStart = now
-        if (recInstrument == null && note != NoteEvent.PEDAL) recInstrument = _settings.value.instrumentId
-        recEvents += NoteEvent(now - recStart, note, velocity)
+        // each note-on keeps the instrument it's played with: switching mid-recording is kept
+        val instrument = if (velocity > 0 && note != NoteEvent.PEDAL) _settings.value.instrumentId else null
+        recEvents += NoteEvent(now - recStart, note, velocity, instrument)
     }
 
     fun toggleRecording() = if (_isRecording.value) stopRecording() else startRecording()
@@ -362,7 +363,7 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
         stopPlayback()
         recEvents.clear()
         recStart = -1
-        recInstrument = null
+        recSettings = _settings.value
         _isRecording.value = true
         // notes already sounding when recording starts are not captured; a held pedal is
         if (_sustain.value) record(NoteEvent.PEDAL, 127)
@@ -378,7 +379,7 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
         if (events.none { it.note != NoteEvent.PEDAL }) return
         val now = System.currentTimeMillis()
         val name = "Recording " + SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()).format(Date(now))
-        val rec = Recording(UUID.randomUUID().toString(), name, now, events.maxOf { it.timeMs }, events, recInstrument)
+        val rec = Recording(UUID.randomUUID().toString(), name, now, events.maxOf { it.timeMs }, events, settings = recSettings)
         viewModelScope.launch {
             saveOrReport(rec, "Couldn't save the recording")
             _recordings.value = store.list()
@@ -398,8 +399,9 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         _playingId.value = rec.id
-        // the recording's own instrument; keys played along keep the one chosen now
-        val instrument = rec.instrumentId?.let(Instruments::byId)
+        // each note with its own instrument, in the recording's tuning; keys played along keep
+        // the app's (as do volume and reverb, which are shared)
+        val tuning = rec.settings?.tuning?.toDouble()
         playbackJob = viewModelScope.launch {
             try {
                 val start = SystemClock.elapsedRealtime()
@@ -411,7 +413,7 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
                         e.note == NoteEvent.PEDAL -> setSustain(SustainSources.Source.PLAYBACK, e.velocity > 0)
                         e.velocity > 0 -> {
                             holders.playbackPress(e.note)
-                            engine.noteOn(e.note, e.velocity, instrument)
+                            engine.noteOn(e.note, e.velocity, rec.instrumentFor(e)?.let(Instruments::byId), tuning)
                             publishPressed()
                         }
                         else -> {

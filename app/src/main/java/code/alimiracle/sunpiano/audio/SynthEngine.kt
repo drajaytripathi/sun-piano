@@ -70,7 +70,7 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
     }
 
     private sealed interface Cmd
-    private class On(val note: Int, val velocity: Int, val instrument: Instrument?) : Cmd
+    private class On(val note: Int, val velocity: Int, val instrument: Instrument?, val tuningA4: Double?) : Cmd
     private class Off(val note: Int) : Cmd
     private class Pedal(val down: Boolean) : Cmd
     private object AllOff : Cmd
@@ -149,10 +149,16 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
         }
     }
 
-    /** Plays [note] with [instrument], or with the current one ([setInstrument]) if null. */
-    fun noteOn(note: Int, velocity: Int = 100, instrument: Instrument? = null) {
-        if (note in 0..127) commands.add(On(note, velocity.coerceIn(1, 127), instrument))
+    /**
+     * Plays [note] with [instrument] and A4 = [tuningA4] Hz, or with the current instrument
+     * ([setInstrument]) and tuning ([SynthEngine.tuningA4]) where null.
+     */
+    fun noteOn(note: Int, velocity: Int = 100, instrument: Instrument? = null, tuningA4: Double? = null) {
+        if (note in 0..127) commands.add(On(note, velocity.coerceIn(1, 127), instrument, tuningA4))
     }
+
+    /** True once [instrument]'s wavetables are built, so a note asking for it gets it. */
+    fun isReady(instrument: Instrument): Boolean = bankCache.containsKey(instrument.id)
 
     fun noteOff(note: Int) {
         if (note in 0..127) commands.add(Off(note))
@@ -298,7 +304,7 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
     private fun drainCommands() {
         while (true) {
             when (val c = commands.poll() ?: return) {
-                is On -> startNote(c.note, c.velocity, c.instrument)
+                is On -> startNote(c.note, c.velocity, c.instrument, c.tuningA4 ?: tuningA4)
                 is Off -> voices.firstOrNull { it.active && it.held && it.note == c.note }?.release(pedalDown)
                 is Pedal -> {
                     pedalDown = c.down
@@ -309,7 +315,7 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
         }
     }
 
-    private fun startNote(note: Int, velocity: Int, instrument: Instrument?) {
+    private fun startNote(note: Int, velocity: Int, instrument: Instrument?, a4: Double) {
         // all instruments are built in the background at start; until then, the current one
         val noteBank = instrument?.let { bankCache[it.id] } ?: bank
         var v = voices.firstOrNull { it.active && !it.fading && it.note == note }
@@ -328,7 +334,7 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
             v = voices.minByOrNull { it.env }!!
             v.active = false
         }
-        v.start(note, velocity, noteBank, sampleRate, Notes.frequency(note, tuningA4).toFloat(), ++orderCounter)
+        v.start(note, velocity, noteBank, sampleRate, Notes.frequency(note, a4).toFloat(), ++orderCounter)
     }
 
     private fun renderMetronome(mixL: FloatArray, mixR: FloatArray) {

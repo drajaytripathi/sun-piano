@@ -4,16 +4,20 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 
-/** [velocity] 0 means note-off. [note] == [PEDAL] encodes the sustain pedal (velocity > 0 = down). */
-data class NoteEvent(val timeMs: Long, val note: Int, val velocity: Int) {
+/**
+ * [velocity] 0 means note-off. [note] == [PEDAL] encodes the sustain pedal (velocity > 0 = down).
+ * A note-on keeps the [instrumentId] it was played with (null in recordings made before that).
+ */
+data class NoteEvent(val timeMs: Long, val note: Int, val velocity: Int, val instrumentId: String? = null) {
     companion object {
         const val PEDAL = -1
     }
 }
 
 /**
- * [instrumentId] is the id of the instrument the recording was played with, or null for
- * recordings made before it was stored: those sound with the instrument chosen now.
+ * [settings] are all the app's settings when recording started; each note-on keeps its own
+ * instrument. Older recordings may have neither, or only one [instrumentId] for every note (the
+ * format of version `766cdfc`); without any, the app's current settings are used.
  */
 data class Recording(
     val id: String,
@@ -22,16 +26,27 @@ data class Recording(
     val durationMs: Long,
     val events: List<NoteEvent>,
     val instrumentId: String? = null,
+    val settings: Settings? = null,
 ) {
+    /** The instrument [e] (a note-on) was played with, or null if the recording doesn't say. */
+    fun instrumentFor(e: NoteEvent): String? = e.instrumentId ?: instrumentId ?: settings?.instrumentId
+
+    /** The instruments the recording's notes were played with, in order of first use. */
+    val instrumentIds: List<String>
+        get() = events.filter { it.velocity > 0 && it.note != NoteEvent.PEDAL }.mapNotNull(::instrumentFor).distinct()
+
     fun toJson(): String = JSONObject().apply {
         put("id", id)
         put("name", name)
         put("createdAt", createdAt)
         put("durationMs", durationMs)
         instrumentId?.let { put("instrument", it) }
-        // compact [time, note, velocity] triples
+        settings?.let { put("settings", it.toJson()) }
+        // compact [time, note, velocity] triples; a note-on adds its instrument as a fourth item
         put("events", JSONArray().also { arr ->
-            events.forEach { arr.put(JSONArray().put(it.timeMs).put(it.note).put(it.velocity)) }
+            events.forEach { e ->
+                arr.put(JSONArray().put(e.timeMs).put(e.note).put(e.velocity).also { a -> e.instrumentId?.let(a::put) })
+            }
         })
     }.toString()
 
@@ -41,10 +56,11 @@ data class Recording(
             val arr = o.getJSONArray("events")
             val events = List(arr.length()) {
                 val e = arr.getJSONArray(it)
-                NoteEvent(e.getLong(0), e.getInt(1), e.getInt(2))
+                NoteEvent(e.getLong(0), e.getInt(1), e.getInt(2), if (e.length() > 3) e.getString(3) else null)
             }
             val instrument = if (o.has("instrument")) o.getString("instrument") else null
-            return Recording(o.getString("id"), o.getString("name"), o.getLong("createdAt"), o.getLong("durationMs"), events, instrument)
+            val settings = o.optJSONObject("settings")?.let(Settings::fromJson)
+            return Recording(o.getString("id"), o.getString("name"), o.getLong("createdAt"), o.getLong("durationMs"), events, instrument, settings)
         }
     }
 }

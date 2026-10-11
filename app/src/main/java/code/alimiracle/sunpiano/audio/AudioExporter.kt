@@ -19,8 +19,8 @@ import kotlin.math.roundToInt
  * real time and without an audio output, and encodes the result as AAC in an .m4a file. AAC is
  * Android's built-in encoder (there is none for MP3) and plays everywhere MP3 does.
  *
- * The sound uses the recording's own instrument (or, for an old recording without one, the one in
- * [Settings]) and [Settings]' tuning, reverb and volume, the same as playing it in the app.
+ * Each note sounds with the instrument it was recorded with, and the recording's saved volume,
+ * reverb and tuning apply. An old recording without them uses [current] instead.
  */
 object AudioExporter {
     private const val BIT_RATE = 192_000
@@ -33,15 +33,20 @@ object AudioExporter {
     private const val INSTRUMENT_WAIT_MS = 10_000L
 
     /** Writes [rec] to [file]; [onProgress] gets 0..1. Throws [IOException] if it can't. */
-    fun exportM4a(rec: Recording, settings: Settings, file: File, onProgress: (Float) -> Unit = {}) {
+    fun exportM4a(rec: Recording, current: Settings, file: File, onProgress: (Float) -> Unit = {}) {
+        val settings = rec.settings ?: current
         val engine = SynthEngine() // never started: only this thread renders it
-        val instrument = Instruments.byId(rec.instrumentId ?: settings.instrumentId)
-        engine.setInstrument(instrument)
+        val fallback = Instruments.byId(settings.instrumentId) // for notes that don't say
+        val used = (rec.instrumentIds.map(Instruments::byId) + fallback).distinct()
+        engine.setInstrument(used.first()) // built first; the others are built in the background
         val deadline = SystemClock.uptimeMillis() + INSTRUMENT_WAIT_MS
-        while (engine.currentInstrument !== instrument) { // its wavetables are built in the background
-            if (SystemClock.uptimeMillis() > deadline) throw IOException("${instrument.name} wasn't ready")
-            Thread.sleep(5)
+        for (ins in used) {
+            while (!engine.isReady(ins)) {
+                if (SystemClock.uptimeMillis() > deadline) throw IOException("${ins.name} wasn't ready")
+                Thread.sleep(5)
+            }
         }
+        engine.setInstrument(fallback)
         engine.volume = settings.volume
         engine.reverbLevel = settings.reverb
         engine.tuningA4 = settings.tuning.toDouble()
@@ -94,7 +99,7 @@ object AudioExporter {
                                 val e = events[next++]
                                 when {
                                     e.note == NoteEvent.PEDAL -> engine.setSustain(e.velocity > 0)
-                                    e.velocity > 0 -> engine.noteOn(e.note, e.velocity)
+                                    e.velocity > 0 -> engine.noteOn(e.note, e.velocity, Instruments.byId(rec.instrumentFor(e) ?: fallback.id))
                                     else -> engine.noteOff(e.note)
                                 }
                             }

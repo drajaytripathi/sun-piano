@@ -45,7 +45,7 @@ class RecordingStore(private val context: Context) {
     }
 
     /**
-     * Renders [r] (with its own instrument, see [AudioExporter]) and writes it as an .m4a (AAC) audio file, like
+     * Renders [r] (with its own instruments and settings, see [AudioExporter]) and writes it as an .m4a (AAC) audio file, like
      * [exportMidi]. Takes a while for a long recording; [onProgress] gets 0..1.
      */
     suspend fun exportAudio(r: Recording, settings: Settings, onProgress: (Float) -> Unit): File = withContext(Dispatchers.Default) {

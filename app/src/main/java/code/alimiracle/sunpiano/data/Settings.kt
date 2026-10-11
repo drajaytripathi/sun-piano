@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import org.json.JSONObject
 
 data class Settings(
     val instrumentId: String = "grand",
@@ -26,7 +27,51 @@ data class Settings(
     val bpm: Int = 100,
     val beatsPerBar: Int = 4,
     val metronomeVolume: Float = 0.6f,
-)
+) {
+    /** All settings, for saving with a recording ([fromJson] reads it back). */
+    fun toJson(): JSONObject = JSONObject().apply {
+        put("instrument", instrumentId)
+        put("volume", exact(volume))
+        put("reverb", exact(reverb))
+        put("transpose", transpose)
+        put("tuning", tuning)
+        put("visibleKeys", visibleKeys)
+        put("showLabels", showLabels)
+        put("solfege", solfege)
+        put("velocityFromTouch", velocityFromTouch)
+        put("glissando", glissando)
+        put("keepScreenOn", keepScreenOn)
+        put("bpm", bpm)
+        put("beatsPerBar", beatsPerBar)
+        put("metronomeVolume", exact(metronomeVolume))
+    }
+
+    /** 0.8f as 0.8, not 0.800000011920929 (a float widened to a double). */
+    private fun exact(f: Float): Double = f.toString().toDouble()
+
+    companion object {
+        /** Reads [toJson]'s output; anything missing (e.g. a setting added later) gets its default. */
+        fun fromJson(o: JSONObject): Settings {
+            val d = Settings()
+            return Settings(
+                instrumentId = o.optString("instrument", d.instrumentId),
+                volume = o.optDouble("volume", d.volume.toDouble()).toFloat(),
+                reverb = o.optDouble("reverb", d.reverb.toDouble()).toFloat(),
+                transpose = o.optInt("transpose", d.transpose),
+                tuning = o.optInt("tuning", d.tuning),
+                visibleKeys = o.optInt("visibleKeys", d.visibleKeys),
+                showLabels = o.optBoolean("showLabels", d.showLabels),
+                solfege = o.optBoolean("solfege", d.solfege),
+                velocityFromTouch = o.optBoolean("velocityFromTouch", d.velocityFromTouch),
+                glissando = o.optBoolean("glissando", d.glissando),
+                keepScreenOn = o.optBoolean("keepScreenOn", d.keepScreenOn),
+                bpm = o.optInt("bpm", d.bpm),
+                beatsPerBar = o.optInt("beatsPerBar", d.beatsPerBar),
+                metronomeVolume = o.optDouble("metronomeVolume", d.metronomeVolume.toDouble()).toFloat(),
+            )
+        }
+    }
+}
 
 private val Context.dataStore by preferencesDataStore("pan_settings")
 

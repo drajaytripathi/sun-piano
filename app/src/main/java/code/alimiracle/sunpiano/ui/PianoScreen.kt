@@ -470,7 +470,8 @@ private fun RecordingsDialog(vm: PianoViewModel, onClose: () -> Unit) {
                     items(list, key = { it.id }) { rec ->
                         Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                             Text(rec.name, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            val instrumentName = rec.instrumentId?.let { " · " + Instruments.byId(it).name }.orEmpty()
+                            val instrumentName = rec.instrumentIds.takeIf { it.isNotEmpty() }
+                                ?.joinToString(", ", prefix = " · ") { Instruments.byId(it).name }.orEmpty()
                             Text(
                                 "%.1f s · %d notes".format(rec.durationMs / 1000f, rec.events.count { it.velocity > 0 && it.note >= 0 }) + instrumentName,
                                 fontSize = 12.sp, color = Color.Gray,
