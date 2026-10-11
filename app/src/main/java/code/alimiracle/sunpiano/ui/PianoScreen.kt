@@ -452,6 +452,7 @@ private fun RecordingsDialog(vm: PianoViewModel, onClose: () -> Unit) {
     val list by vm.recordings.collectAsStateWithLifecycle()
     val playingId by vm.playingId.collectAsStateWithLifecycle()
     val progress by vm.playbackProgress.collectAsStateWithLifecycle()
+    val audioExport by vm.audioExport.collectAsStateWithLifecycle()
     var renaming by remember { mutableStateOf<Recording?>(null) }
     var deleting by remember { mutableStateOf<Recording?>(null) }
     val context = LocalContext.current
@@ -469,7 +470,11 @@ private fun RecordingsDialog(vm: PianoViewModel, onClose: () -> Unit) {
                     items(list, key = { it.id }) { rec ->
                         Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                             Text(rec.name, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text("%.1f s · %d notes".format(rec.durationMs / 1000f, rec.events.count { it.velocity > 0 && it.note >= 0 }), fontSize = 12.sp, color = Color.Gray)
+                            val instrumentName = rec.instrumentId?.let { " · " + Instruments.byId(it).name }.orEmpty()
+                            Text(
+                                "%.1f s · %d notes".format(rec.durationMs / 1000f, rec.events.count { it.velocity > 0 && it.note >= 0 }) + instrumentName,
+                                fontSize = 12.sp, color = Color.Gray,
+                            )
                             if (playingId == rec.id) LinearProgressIndicator({ progress }, Modifier.fillMaxWidth().padding(vertical = 4.dp))
                             // wraps onto a second line in a narrow (phone) dialog instead of squeezing a button
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -487,6 +492,21 @@ private fun RecordingsDialog(vm: PianoViewModel, onClose: () -> Unit) {
                                         context.startActivity(Intent.createChooser(send, "Share MIDI"))
                                     }
                                 }) { Text("Share .mid") }
+                                val exportingThis = audioExport?.first == rec.id
+                                TextButton({
+                                    scope.launch {
+                                        val file = vm.exportAudio(rec) ?: return@launch
+                                        val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
+                                        val send = Intent(Intent.ACTION_SEND).apply {
+                                            type = "audio/mp4"
+                                            putExtra(Intent.EXTRA_STREAM, uri)
+                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        }
+                                        context.startActivity(Intent.createChooser(send, "Share audio"))
+                                    }
+                                }, enabled = audioExport == null) {
+                                    Text(if (exportingThis) "Exporting ${((audioExport?.second ?: 0f) * 100).roundToInt()}%" else "Share audio")
+                                }
                                 TextButton({ deleting = rec }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
                             }
                             HorizontalDivider()

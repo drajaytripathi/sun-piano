@@ -11,18 +11,24 @@ data class NoteEvent(val timeMs: Long, val note: Int, val velocity: Int) {
     }
 }
 
+/**
+ * [instrumentId] is the id of the instrument the recording was played with, or null for
+ * recordings made before it was stored: those sound with the instrument chosen now.
+ */
 data class Recording(
     val id: String,
     val name: String,
     val createdAt: Long,
     val durationMs: Long,
     val events: List<NoteEvent>,
+    val instrumentId: String? = null,
 ) {
     fun toJson(): String = JSONObject().apply {
         put("id", id)
         put("name", name)
         put("createdAt", createdAt)
         put("durationMs", durationMs)
+        instrumentId?.let { put("instrument", it) }
         // compact [time, note, velocity] triples
         put("events", JSONArray().also { arr ->
             events.forEach { arr.put(JSONArray().put(it.timeMs).put(it.note).put(it.velocity)) }
@@ -37,7 +43,8 @@ data class Recording(
                 val e = arr.getJSONArray(it)
                 NoteEvent(e.getLong(0), e.getInt(1), e.getInt(2))
             }
-            return Recording(o.getString("id"), o.getString("name"), o.getLong("createdAt"), o.getLong("durationMs"), events)
+            val instrument = if (o.has("instrument")) o.getString("instrument") else null
+            return Recording(o.getString("id"), o.getString("name"), o.getLong("createdAt"), o.getLong("durationMs"), events, instrument)
         }
     }
 }

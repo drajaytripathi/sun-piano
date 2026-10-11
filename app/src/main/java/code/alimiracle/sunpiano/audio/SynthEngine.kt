@@ -70,7 +70,7 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
     }
 
     private sealed interface Cmd
-    private class On(val note: Int, val velocity: Int) : Cmd
+    private class On(val note: Int, val velocity: Int, val instrument: Instrument?) : Cmd
     private class Off(val note: Int) : Cmd
     private class Pedal(val down: Boolean) : Cmd
     private object AllOff : Cmd
@@ -149,8 +149,9 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
         }
     }
 
-    fun noteOn(note: Int, velocity: Int = 100) {
-        if (note in 0..127) commands.add(On(note, velocity.coerceIn(1, 127)))
+    /** Plays [note] with [instrument], or with the current one ([setInstrument]) if null. */
+    fun noteOn(note: Int, velocity: Int = 100, instrument: Instrument? = null) {
+        if (note in 0..127) commands.add(On(note, velocity.coerceIn(1, 127), instrument))
     }
 
     fun noteOff(note: Int) {
@@ -297,7 +298,7 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
     private fun drainCommands() {
         while (true) {
             when (val c = commands.poll() ?: return) {
-                is On -> startNote(c.note, c.velocity)
+                is On -> startNote(c.note, c.velocity, c.instrument)
                 is Off -> voices.firstOrNull { it.active && it.held && it.note == c.note }?.release(pedalDown)
                 is Pedal -> {
                     pedalDown = c.down
@@ -308,7 +309,9 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
         }
     }
 
-    private fun startNote(note: Int, velocity: Int) {
+    private fun startNote(note: Int, velocity: Int, instrument: Instrument?) {
+        // all instruments are built in the background at start; until then, the current one
+        val noteBank = instrument?.let { bankCache[it.id] } ?: bank
         var v = voices.firstOrNull { it.active && !it.fading && it.note == note }
         if (v == null) {
             if (voices.count { it.active && !it.fading } >= MAX_VOICES) {
@@ -325,7 +328,7 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
             v = voices.minByOrNull { it.env }!!
             v.active = false
         }
-        v.start(note, velocity, bank, sampleRate, Notes.frequency(note, tuningA4).toFloat(), ++orderCounter)
+        v.start(note, velocity, noteBank, sampleRate, Notes.frequency(note, tuningA4).toFloat(), ++orderCounter)
     }
 
     private fun renderMetronome(mixL: FloatArray, mixR: FloatArray) {

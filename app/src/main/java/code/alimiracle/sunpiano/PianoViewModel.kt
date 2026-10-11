@@ -117,6 +117,8 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
     private var playbackJob: Job? = null
 
     private var recStart = -1L
+    /** The instrument of the recording's first note. */
+    private var recInstrument: String? = null
     private val recEvents = ArrayList<NoteEvent>()
 
     private val midi = MidiInput(
@@ -350,6 +352,7 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
         if (!_isRecording.value) return
         val now = SystemClock.elapsedRealtime()
         if (recStart < 0) recStart = now
+        if (recInstrument == null && note != NoteEvent.PEDAL) recInstrument = _settings.value.instrumentId
         recEvents += NoteEvent(now - recStart, note, velocity)
     }
 
@@ -359,6 +362,7 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
         stopPlayback()
         recEvents.clear()
         recStart = -1
+        recInstrument = null
         _isRecording.value = true
         // notes already sounding when recording starts are not captured; a held pedal is
         if (_sustain.value) record(NoteEvent.PEDAL, 127)
@@ -374,7 +378,7 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
         if (events.none { it.note != NoteEvent.PEDAL }) return
         val now = System.currentTimeMillis()
         val name = "Recording " + SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()).format(Date(now))
-        val rec = Recording(UUID.randomUUID().toString(), name, now, events.maxOf { it.timeMs }, events)
+        val rec = Recording(UUID.randomUUID().toString(), name, now, events.maxOf { it.timeMs }, events, recInstrument)
         viewModelScope.launch {
             saveOrReport(rec, "Couldn't save the recording")
             _recordings.value = store.list()
@@ -394,6 +398,8 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         _playingId.value = rec.id
+        // the recording's own instrument; keys played along keep the one chosen now
+        val instrument = rec.instrumentId?.let(Instruments::byId)
         playbackJob = viewModelScope.launch {
             try {
                 val start = SystemClock.elapsedRealtime()
@@ -405,7 +411,7 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
                         e.note == NoteEvent.PEDAL -> setSustain(SustainSources.Source.PLAYBACK, e.velocity > 0)
                         e.velocity > 0 -> {
                             holders.playbackPress(e.note)
-                            engine.noteOn(e.note, e.velocity)
+                            engine.noteOn(e.note, e.velocity, instrument)
                             publishPressed()
                         }
                         else -> {
@@ -460,6 +466,28 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
         android.util.Log.e("SunPiano", "Couldn't export ${rec.name}", e)
         _message.value = "Couldn't export \"${rec.name}\" as MIDI. The device storage may be full."
         null
+    }
+
+    private val _audioExport = MutableStateFlow<Pair<String, Float>?>(null)
+    /** The recording being exported as audio and how far along (0..1), or null. */
+    val audioExport: StateFlow<Pair<String, Float>?> = _audioExport.asStateFlow()
+
+    /**
+     * Renders [rec] with the current instrument and writes it as an .m4a audio file for sharing;
+     * on failure tells the user and returns null. One export at a time.
+     */
+    suspend fun exportAudio(rec: Recording): File? {
+        if (_audioExport.value != null) return null
+        _audioExport.value = rec.id to 0f
+        return try {
+            store.exportAudio(rec, _settings.value) { p -> _audioExport.value = rec.id to p }
+        } catch (e: IOException) {
+            android.util.Log.e("SunPiano", "Couldn't export ${rec.name} as audio", e)
+            _message.value = "Couldn't export \"${rec.name}\" as audio. The device storage may be full."
+            null
+        } finally {
+            _audioExport.value = null
+        }
     }
 
     /** Saves [rec]; on failure tells the user instead of losing it silently (or crashing). */
