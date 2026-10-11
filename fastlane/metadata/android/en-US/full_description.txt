@@ -19,7 +19,15 @@ Sun Piano is an electronic piano for Android. Every sound is synthesized in real
 <b>Practice and recording</b>
 <ul>
 <li>Metronome with tempo, time signature, tap tempo and beat indicator</li>
-<li>Record and play back what you play; rename, delete, and export or share recordings as standard MIDI files</li>
+<li>Record and play back what you play. Each recording keeps every note's instrument, even when you switch instruments in the middle, and the settings it was made with, such as the tuning</li>
+<li>A Library to play, rename and delete recordings</li>
+</ul>
+
+<b>Share and import</b>
+<ul>
+<li>Share a recording as audio (.m4a), which plays on any phone or computer and in messaging apps</li>
+<li>Share it as a standard MIDI file, with General MIDI instruments, to edit the notes in other music programs</li>
+<li>Import MIDI files from other apps: all tracks, tempo changes and the sustain pedal, with their instruments matched to Sun Piano's sounds (drums are left out)</li>
 </ul>
 
 <b>Connect a keyboard</b>
