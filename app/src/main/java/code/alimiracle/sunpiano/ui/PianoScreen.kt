@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
@@ -47,6 +48,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -78,6 +80,9 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 private enum class Panel { NONE, METRONOME, SETTINGS, RECORDINGS }
+
+/** What the file picker offers for Import .mid: file managers and browsers label .mid files differently. */
+private val MIDI_TYPES = arrayOf("audio/midi", "audio/x-midi", "audio/mid", "application/x-midi", "audio/sp-midi", "application/octet-stream")
 
 @Composable
 fun PianoScreen(vm: PianoViewModel) {
@@ -457,16 +462,24 @@ private fun RecordingsDialog(vm: PianoViewModel, onClose: () -> Unit) {
     var deleting by remember { mutableStateOf<Recording?>(null) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val pickMidi = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let(vm::importMidi)
+    }
+    // A list keeps its first visible item in place, so a recording added at the top (an import)
+    // would appear just above the visible part: show it.
+    val listState = rememberLazyListState()
+    LaunchedEffect(list.firstOrNull()?.id) { listState.scrollToItem(0) }
 
     AlertDialog(
         onDismissRequest = { vm.stopPlayback(); onClose() },
         confirmButton = { TextButton({ vm.stopPlayback(); onClose() }) { Text("Close") } },
+        dismissButton = { TextButton({ pickMidi.launch(MIDI_TYPES) }) { Text("Import .mid") } },
         title = { Text("Recordings") },
         text = {
             if (list.isEmpty()) {
                 Text("Nothing here yet. Tap ● Rec, play something, then tap ■ Stop.")
             } else {
-                LazyColumn(Modifier.heightIn(max = 340.dp)) {
+                LazyColumn(Modifier.heightIn(max = 340.dp), state = listState) {
                     items(list, key = { it.id }) { rec ->
                         Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                             Text(rec.name, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)

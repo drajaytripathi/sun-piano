@@ -75,9 +75,17 @@ object MidiFileWriter {
         // tempo meta event
         track.write(byteArrayOf(0x00, 0xFF.toByte(), 0x51, 0x03, (TEMPO_US shr 16).toByte(), (TEMPO_US shr 8).toByte(), TEMPO_US.toByte()))
         var last = 0L
+        var program = -1
         for (e in recording.events.sortedBy { it.timeMs }) {
             writeVlq(track, e.timeMs - last)
             last = e.timeMs
+            // the note's instrument as a General MIDI program, when it changes (MidiFileReader maps it back)
+            val instrument = if (e.velocity > 0 && e.note != NoteEvent.PEDAL) recording.instrumentFor(e) else null
+            if (instrument != null && GeneralMidi.programFor(instrument) != program) {
+                program = GeneralMidi.programFor(instrument)
+                track.write(0xC0); track.write(program)
+                writeVlq(track, 0)
+            }
             if (e.note == NoteEvent.PEDAL) {
                 track.write(0xB0); track.write(64); track.write(if (e.velocity > 0) 127 else 0)
             } else if (e.velocity > 0) {

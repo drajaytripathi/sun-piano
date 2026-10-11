@@ -8,10 +8,12 @@ import android.content.IntentFilter
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
+import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.provider.OpenableColumns
 import android.view.KeyEvent
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
@@ -19,6 +21,7 @@ import androidx.lifecycle.viewModelScope
 import code.alimiracle.sunpiano.audio.Instruments
 import code.alimiracle.sunpiano.audio.SynthEngine
 import code.alimiracle.sunpiano.data.DebouncedSaver
+import code.alimiracle.sunpiano.data.MidiFileReader
 import code.alimiracle.sunpiano.data.NoteEvent
 import code.alimiracle.sunpiano.data.Recording
 import code.alimiracle.sunpiano.data.RecordingStore
@@ -31,6 +34,7 @@ import code.alimiracle.sunpiano.music.KeyboardLayout
 import code.alimiracle.sunpiano.music.NoteHolders
 import code.alimiracle.sunpiano.music.Notes
 import code.alimiracle.sunpiano.music.SustainSources
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,6 +43,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
 import java.text.SimpleDateFormat
@@ -470,6 +475,49 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
         null
     }
 
+    /**
+     * Reads the MIDI file at [uri] (from the file picker) into a new recording in the Library; on
+     * failure tells the user. Notes on the drum channel are left out.
+     */
+    fun importMidi(uri: Uri) {
+        viewModelScope.launch {
+            val app = getApplication<Application>()
+            val fileName = withContext(Dispatchers.IO) {
+                runCatching {
+                    app.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                        if (c.moveToFirst()) c.getString(0) else null
+                    }
+                }.getOrNull()
+            }
+            val shown = fileName ?: "the file"
+            try {
+                val bytes = withContext(Dispatchers.IO) {
+                    app.contentResolver.openInputStream(uri)?.use { input ->
+                        val out = java.io.ByteArrayOutputStream()
+                        val buf = ByteArray(16 * 1024)
+                        while (true) {
+                            val n = input.read(buf)
+                            if (n < 0) break
+                            out.write(buf, 0, n)
+                            if (out.size() > MAX_MIDI_BYTES) throw IOException("too large")
+                        }
+                        out.toByteArray()
+                    } ?: throw IOException("can't open")
+                }
+                val midi = withContext(Dispatchers.Default) { MidiFileReader.read(bytes) }
+                val name = fileName?.substringBeforeLast('.')?.trim()?.ifEmpty { null } ?: midi.trackName ?: "Imported MIDI"
+                val rec = Recording(UUID.randomUUID().toString(), name, System.currentTimeMillis(), midi.durationMs, midi.events)
+                saveOrReport(rec, "Couldn't save the imported recording")
+                _recordings.value = store.list()
+            } catch (e: IOException) {
+                android.util.Log.w("SunPiano", "Couldn't import $shown", e)
+                _message.value = "Couldn't import \"$shown\": it isn't a MIDI file Sun Piano can read, or it has no notes."
+            } catch (e: SecurityException) { // the picker's permission went away
+                _message.value = "Couldn't open \"$shown\"."
+            }
+        }
+    }
+
     private val _audioExport = MutableStateFlow<Pair<String, Float>?>(null)
     /** The recording being exported as audio and how far along (0..1), or null. */
     val audioExport: StateFlow<Pair<String, Float>?> = _audioExport.asStateFlow()
@@ -507,6 +555,8 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
     // works on a US layout (on an Arabic layout just one key matched).
     companion object {
         private const val SETTINGS_SAVE_DELAY_MS = 500L
+        /** MIDI files are small (a long piece is well under 1 MB); anything bigger is not one. */
+        private const val MAX_MIDI_BYTES = 4 * 1024 * 1024
 
         // Linux evdev scan codes (see Android's Generic.kl), unaffected by the selected layout.
         // Rows by US label: Z S X D C V G B H N J M , L . ; /  and  Q 2 W 3 E R 5 T 6 Y 7 U I 9 O 0 P [ = ]
