@@ -303,10 +303,13 @@ private fun MetronomeDialog(
     var lastTap by remember { mutableLongStateOf(0L) }
     AlertDialog(
         onDismissRequest = onClose,
-        confirmButton = { TextButton(onClose) { Text("Done") } },
+        // Start/Stop sits with Done in the button row, which never scrolls: inside the content it
+        // was below the visible part of the dialog on phones, and people couldn't find it
+        confirmButton = { Button({ setOn(!on) }) { Text(if (on) "Stop" else "Start") } },
+        dismissButton = { TextButton(onClose) { Text("Done") } },
         title = { Text("Metronome") },
         text = {
-            // scrolls on a short (phone landscape) screen, where Start would otherwise be cut off
+            // scrolls on a short (phone landscape) screen
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton({ update { it.copy(bpm = (it.bpm - 1).coerceIn(30, 240)) } }) { Text("−") }
@@ -332,15 +335,12 @@ private fun MetronomeDialog(
                 }
                 Text("Click volume", fontSize = 12.sp)
                 Slider(s.metronomeVolume, { v -> update { it.copy(metronomeVolume = v) } })
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton({
-                        val now = System.currentTimeMillis()
-                        val gap = now - lastTap
-                        if (lastTap != 0L && gap in 250..2000) update { it.copy(bpm = (60000f / gap).roundToInt().coerceIn(30, 240)) }
-                        lastTap = now
-                    }) { Text("Tap tempo") }
-                    Button({ setOn(!on) }) { Text(if (on) "Stop" else "Start") }
-                }
+                OutlinedButton({
+                    val now = System.currentTimeMillis()
+                    val gap = now - lastTap
+                    if (lastTap != 0L && gap in 250..2000) update { it.copy(bpm = (60000f / gap).roundToInt().coerceIn(30, 240)) }
+                    lastTap = now
+                }) { Text("Tap tempo") }
             }
         },
     )
