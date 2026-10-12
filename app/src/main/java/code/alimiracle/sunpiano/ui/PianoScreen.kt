@@ -490,12 +490,17 @@ private fun RecordingsDialog(vm: PianoViewModel, onClose: () -> Unit) {
                     items(list, key = { it.id }) { rec ->
                         Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                             Text(rec.name, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            val instrumentName = rec.instrumentIds.takeIf { it.isNotEmpty() }
-                                ?.joinToString(", ", prefix = " · ") { Instruments.byId(it).name }.orEmpty()
-                            Text(
-                                "%.1f s · %d notes".format(rec.durationMs / 1000f, rec.events.count { it.velocity > 0 && it.note >= 0 }) + instrumentName,
-                                fontSize = 12.sp, color = Color.Gray,
-                            )
+                            // once per recording: these walk all the events, and every item
+                            // recomposes on each playback-progress tick
+                            val subtitle = remember(rec.id) {
+                                val instruments = rec.instrumentIds.takeIf { it.isNotEmpty() }
+                                    ?.joinToString(", ", prefix = " · ") { Instruments.byId(it).name }.orEmpty()
+                                "%.1f s · %d notes".format(
+                                    rec.durationMs / 1000f,
+                                    rec.events.count { it.velocity > 0 && it.note >= 0 },
+                                ) + instruments
+                            }
+                            Text(subtitle, fontSize = 12.sp, color = Color.Gray)
                             if (playingId == rec.id) LinearProgressIndicator({ progress }, Modifier.fillMaxWidth().padding(vertical = 4.dp))
                             // wraps onto a second line in a narrow (phone) dialog instead of squeezing a button
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {

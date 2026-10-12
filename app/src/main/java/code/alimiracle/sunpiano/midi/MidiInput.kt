@@ -40,6 +40,13 @@ class MidiInput(
     private var currentId = -1
     private var started = false
 
+    /**
+     * Raised by [close]. A parse the receiver queued before the device went away runs after
+     * [close]'s cleanup, which would hold notes nothing will ever release; its generation no
+     * longer matches, so it is dropped. Bytes of a newly attached device carry the new one.
+     */
+    @Volatile private var generation = 0
+
     /** The Bluetooth keyboard the user picked, reopened by [start] after leaving the app. */
     private var bluetooth: BluetoothDevice? = null
     private var bluetoothName = ""
@@ -61,7 +68,8 @@ class MidiInput(
         override fun onSend(data: ByteArray, offset: Int, count: Int, timestamp: Long) {
             // MIDI callbacks arrive on a binder thread; hop to main for the UI/view-model.
             val copy = data.copyOfRange(offset, offset + count)
-            handler.post { parser.parse(copy) }
+            val seen = generation
+            handler.post { if (seen == generation) parser.parse(copy) }
         }
     }
 
@@ -134,6 +142,9 @@ class MidiInput(
     }
 
     private fun close() {
+        // First, so a parse queued before this moment is dropped instead of re-holding notes
+        // of the device being closed (the receiver's post checks it).
+        generation++
         // Without this, notes and the pedal held when the device is unplugged (or when we stop
         // listening) would never get their note-off / pedal-up and stay stuck.
         parser.releaseAll()
