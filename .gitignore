@@ -4,3 +4,8 @@ local.properties
 build/
 .idea
 .kotlin/
+
+# signing keys and the signed APKs made with them: never commit
+*.jks
+*.keystore
+fdroid/*.apk
