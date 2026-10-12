@@ -2,6 +2,7 @@ package code.alimiracle.sunpiano.data
 
 import android.content.Context
 import android.util.Log
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
@@ -77,7 +78,12 @@ data class Settings(
     }
 }
 
-private val Context.dataStore by preferencesDataStore("pan_settings")
+// DataStore reads the file before every write too, so without this a corrupt file would make every
+// save fail: it's replaced by empty settings (the defaults) and saving works again.
+private val Context.dataStore by preferencesDataStore(
+    "pan_settings",
+    corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
+)
 
 class SettingsRepository(private val context: Context) {
     private object K {
@@ -97,8 +103,8 @@ class SettingsRepository(private val context: Context) {
         val metroVol = floatPreferencesKey("metro_volume")
     }
 
-    // An unreadable or corrupt file falls back to the defaults (and a later save repairs it)
-    // instead of failing every launch; anything else is a bug and must surface.
+    // A file that can't be read falls back to the defaults instead of failing every launch (a
+    // corrupt one is replaced by the corruptionHandler above); anything else is a bug and must surface.
     val flow: Flow<Settings> = context.dataStore.data
         .catch { e ->
             if (e is IOException) {
