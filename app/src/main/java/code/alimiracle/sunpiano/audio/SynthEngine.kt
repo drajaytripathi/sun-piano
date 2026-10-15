@@ -32,6 +32,15 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
     companion object {
         const val BLOCK = 256
         const val MAX_VOICES = 24
+        /**
+         * Gain after the volume slider (about +7.6 dB). The notes are mixed with room for many at
+         * once, which left a single note around -14 dBFS: too quiet on a phone speaker (issue #2).
+         */
+        private const val OUTPUT_GAIN = 2.4f
+        /** The limiter keeps peaks at about -1 dBFS, so loud chords get turned down, not distorted. */
+        private const val LIMIT_CEILING = 0.89f
+        /** How fast the limiter lets the level back up after a peak: slow enough not to pump. */
+        private const val LIMIT_RELEASE_S = 0.15f
         /** Extra voice slots where stolen notes fade out while the new note starts in another. */
         private const val FADE_SLOTS = 8
         /** Time constant of that fade: inaudible as a click, ~45 ms to silence. */
@@ -201,6 +210,7 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
         // as an echo on the next start.
         reverb.clear()
         clickEnv = 0f
+        limitGain = 1f
     }
 
     // ---- audio thread ----
@@ -266,6 +276,12 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
 
     private val mixL = FloatArray(BLOCK)
     private val mixR = FloatArray(BLOCK)
+    /** The metronome's click, mixed in after the limiter so a loud click never turns the piano down. */
+    private val click = FloatArray(BLOCK)
+
+    /** The limiter's current gain (1 = not limiting); audio thread only. */
+    private var limitGain = 1f
+    private val limitRelease = exp(-1f / (LIMIT_RELEASE_S * sampleRate))
 
     /**
      * Renders the next [BLOCK] stereo frames into [out] (interleaved). Called by the audio
@@ -276,9 +292,10 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
         mixL.fill(0f)
         mixR.fill(0f)
         for (v in voices) if (v.active) v.render(mixL, mixR, BLOCK)
-        renderMetronome(mixL, mixR)
+        click.fill(0f)
+        renderMetronome(click)
 
-        val master = volume * volume
+        val master = volume * volume * OUTPUT_GAIN
         val wet = reverbLevel
         val useReverb = wet > 0.001f
         for (i in 0 until BLOCK) {
@@ -289,8 +306,15 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
                 l += reverb.outL * wet
                 r += reverb.outR * wet
             }
-            out[2 * i] = softClip(l * master)
-            out[2 * i + 1] = softClip(r * master)
+            l *= master
+            r *= master
+            // limiter: down at once when a peak would pass the ceiling, back up slowly
+            val peak = max(abs(l), abs(r))
+            val allowed = if (peak * limitGain > LIMIT_CEILING) LIMIT_CEILING / peak else 1f
+            limitGain = if (allowed < limitGain) allowed else 1f - (1f - limitGain) * limitRelease
+            val c = click[i] * master
+            out[2 * i] = softClip(l * limitGain + c) // only a safety net now
+            out[2 * i + 1] = softClip(r * limitGain + c)
         }
     }
 
@@ -337,7 +361,7 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
         v.start(note, velocity, noteBank, sampleRate, Notes.frequency(note, a4).toFloat(), ++orderCounter)
     }
 
-    private fun renderMetronome(mixL: FloatArray, mixR: FloatArray) {
+    private fun renderMetronome(click: FloatArray) {
         val on = metronomeOn
         if (on && !wasMetro) {
             metroCount = 0
@@ -371,8 +395,7 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
                 clickPhase += clickInc
                 if (clickPhase >= 1f) clickPhase -= 1f
                 clickEnv *= decay
-                mixL[i] += s
-                mixR[i] += s
+                click[i] = s
             }
         }
     }
