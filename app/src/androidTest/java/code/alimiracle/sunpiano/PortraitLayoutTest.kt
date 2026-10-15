@@ -22,8 +22,7 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import code.alimiracle.sunpiano.music.KeyboardLayout
-import code.alimiracle.sunpiano.ui.PanTheme
-import code.alimiracle.sunpiano.ui.PianoScreen
+import code.alimiracle.sunpiano.ui.PianoApp
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assume.assumeTrue
@@ -72,7 +71,7 @@ class PortraitLayoutTest {
             lateinit var view: View
             scenario.onActivity { activity ->
                 vm = ViewModelProvider(activity)[PianoViewModel::class.java]
-                activity.setContent { PanTheme { Box(area.box) { PianoScreen(vm) } } }
+                activity.setContent { Box(area.box) { PianoApp(vm) } }
                 view = activity.findViewById<ViewGroup>(android.R.id.content).getChildAt(0)
             }
             var turned = false

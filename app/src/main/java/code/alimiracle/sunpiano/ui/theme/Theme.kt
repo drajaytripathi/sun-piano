@@ -1,4 +1,4 @@
-package code.alimiracle.sunpiano.ui
+package code.alimiracle.sunpiano.ui.theme
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
@@ -20,7 +20,8 @@ private val scheme = darkColorScheme(
     error = Color(0xFFFF6B6B),
 )
 
+/** The app's dark amber theme. */
 @Composable
-fun PanTheme(content: @Composable () -> Unit) {
+fun SunPianoTheme(content: @Composable () -> Unit) {
     MaterialTheme(colorScheme = scheme, content = content)
 }

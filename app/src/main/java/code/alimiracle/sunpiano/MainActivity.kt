@@ -12,8 +12,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import code.alimiracle.sunpiano.music.SustainSources
-import code.alimiracle.sunpiano.ui.PanTheme
-import code.alimiracle.sunpiano.ui.PianoScreen
+import code.alimiracle.sunpiano.ui.PianoApp
 
 class MainActivity : ComponentActivity() {
     private val vm: PianoViewModel by viewModels()
@@ -27,7 +26,7 @@ class MainActivity : ComponentActivity() {
         volumeControlStream = AudioManager.STREAM_MUSIC
         WindowCompat.setDecorFitsSystemWindows(window, false)
         keepKeysFromTheInputMethod()
-        setContent { PanTheme { PianoScreen(vm) } }
+        setContent { PianoApp(vm) }
         holdKeyFocus()
     }
 
