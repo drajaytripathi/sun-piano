@@ -2,7 +2,7 @@
 
 ![Sun Piano](logo/sun-piano-wordmark.png)
 
-Electronic piano for Android (Kotlin, Jetpack Compose, Material 3). minSdk 26, targetSdk 36.
+Electronic piano for Android (Kotlin, Jetpack Compose, Material 3). minSdk 31 (Android 12), targetSdk 36.
 
 ## Features
 - 88-key keyboard with multitouch, glissando, touch-position velocity, note labels (letters or Do-Re-Mi), mini-map scrubber, octave shift, 7–28 visible keys

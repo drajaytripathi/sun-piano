@@ -3,8 +3,6 @@ package code.alimiracle.sunpiano.ui
 import android.app.Activity
 import android.content.Intent
 import android.content.res.Configuration
-import android.graphics.Point
-import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -181,16 +179,9 @@ private fun displayIsPortrait(): Boolean {
     val configuration = LocalConfiguration.current // changes on rotation, so this is re-read then
     return remember(configuration, view) {
         val activity = view.context as? Activity
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && activity != null) {
-            val bounds = activity.windowManager.maximumWindowMetrics.bounds
-            bounds.height() > bounds.width()
-        } else {
-            val display = view.display ?: return@remember configuration.orientation == Configuration.ORIENTATION_PORTRAIT
-            val size = Point()
-            @Suppress("DEPRECATION")
-            display.getRealSize(size)
-            size.y > size.x
-        }
+            ?: return@remember configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+        val bounds = activity.windowManager.maximumWindowMetrics.bounds
+        bounds.height() > bounds.width()
     }
 }
 

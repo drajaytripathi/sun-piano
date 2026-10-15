@@ -10,8 +10,6 @@ import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.content.pm.PackageManager
-import android.location.LocationManager
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.ParcelUuid
@@ -50,14 +48,9 @@ class BluetoothMidiScanner(private val context: Context) {
         context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED
     }
 
-    /** Why a scan can't run now (Bluetooth off, or Location off where scans need it), or null. */
-    fun problem(): String? = when {
-        adapter?.isEnabled != true -> "Bluetooth is off. Turn it on, then search again."
-        Build.VERSION.SDK_INT in 28..30 &&
-            context.getSystemService(LocationManager::class.java)?.isLocationEnabled == false ->
-            "Location is off. Android 11 and older need it on to find Bluetooth devices."
-        else -> null
-    }
+    /** Why a scan can't run now (Bluetooth off), or null. */
+    fun problem(): String? =
+        if (adapter?.isEnabled != true) "Bluetooth is off. Turn it on, then search again." else null
 
     private val callback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) = add(result)
@@ -111,9 +104,7 @@ class BluetoothMidiScanner(private val context: Context) {
         val MIDI_SERVICE: ParcelUuid = ParcelUuid.fromString("03B80E5A-EDE8-4B33-A751-6CE34EC4C700")
         const val SCAN_MS = 15_000L
 
-        /** Runtime permissions needed to scan for and connect to Bluetooth devices. */
-        val PERMISSIONS: Array<String> =
-            if (Build.VERSION.SDK_INT >= 31) arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
-            else arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
+        /** Runtime permissions ("Nearby devices") needed to scan for and connect to Bluetooth devices. */
+        val PERMISSIONS: Array<String> = arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
     }
 }

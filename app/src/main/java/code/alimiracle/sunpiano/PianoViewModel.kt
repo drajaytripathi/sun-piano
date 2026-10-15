@@ -9,7 +9,6 @@ import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.net.Uri
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -309,8 +308,7 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
     /** Searches for Bluetooth MIDI keyboards; the caller asks for the permissions first. */
     fun searchBluetoothMidi() {
         val problem = if (!bluetoothScanner.hasPermissions()) {
-            val permission = if (Build.VERSION.SDK_INT >= 31) "Nearby devices" else "Location"
-            "Sun Piano needs the $permission permission to find Bluetooth MIDI keyboards. You can allow it in the app's settings."
+            "Sun Piano needs the Nearby devices permission to find Bluetooth MIDI keyboards. You can allow it in the app's settings."
         } else bluetoothScanner.problem()
         if (problem != null) _message.value = problem else bluetoothScanner.start()
     }
