@@ -1,0 +1,7 @@
+1.0:
+• Needs Android 12 or newer, and no longer asks for the location permission
+• New About screen: version, license and links to the source code
+• On phones the whole top bar fits: Settings and About are icons
+• Metronome: Start/Stop is next to Done, always visible on phones
+• A damaged settings file no longer crashes the app; it's replaced and saving works again
+• No stuck note when a MIDI keyboard is unplugged while playing
