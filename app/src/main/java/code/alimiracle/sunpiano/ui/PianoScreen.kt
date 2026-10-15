@@ -1,7 +1,9 @@
 package code.alimiracle.sunpiano.ui
 
 import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.net.Uri
 import android.content.res.Configuration
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -71,6 +73,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import code.alimiracle.sunpiano.BuildConfig
 import code.alimiracle.sunpiano.PianoViewModel
 import code.alimiracle.sunpiano.audio.Instruments
 import code.alimiracle.sunpiano.data.Recording
@@ -79,7 +82,7 @@ import code.alimiracle.sunpiano.midi.BluetoothMidiScanner
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
-private enum class Panel { NONE, METRONOME, SETTINGS, RECORDINGS }
+private enum class Panel { NONE, METRONOME, SETTINGS, RECORDINGS, ABOUT }
 
 /** What the file picker offers for Import .mid: file managers and browsers label .mid files differently. */
 private val MIDI_TYPES = arrayOf("audio/midi", "audio/x-midi", "audio/mid", "application/x-midi", "audio/sp-midi", "application/octet-stream")
@@ -159,6 +162,7 @@ fun PianoScreen(vm: PianoViewModel) {
         Panel.METRONOME -> MetronomeDialog(settings, metronome, beat, vm::setMetronome, vm::updateSettings) { panel = Panel.NONE }
         Panel.SETTINGS -> SettingsDialog(settings, vm::updateSettings, { BluetoothMidiSection(vm) }) { panel = Panel.NONE }
         Panel.RECORDINGS -> RecordingsDialog(vm) { panel = Panel.NONE }
+        Panel.ABOUT -> AboutDialog { panel = Panel.NONE }
         Panel.NONE -> Unit
     }
 
@@ -228,6 +232,7 @@ private fun ControlBar(
 
             OutlinedButton(onClick = { onPanel(Panel.RECORDINGS) }) { Text("Library") }
             OutlinedButton(onClick = { onPanel(Panel.SETTINGS) }) { Text("⚙ Settings") }
+            OutlinedButton(onClick = { onPanel(Panel.ABOUT) }) { Text("ⓘ About") }
 
             if (midiName != null) {
                 Text("MIDI: $midiName", fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -433,6 +438,49 @@ private fun LabeledSlider(
         }
         Slider(v, onChange, valueRange = range, steps = steps)
     }
+}
+
+private const val SOURCE_URL = "https://codeberg.org/alimiracle/sun-piano"
+private const val ISSUES_URL = "$SOURCE_URL/issues"
+private const val LICENSE_URL = "https://www.gnu.org/licenses/gpl-3.0.html"
+
+/** Version, copyright and the GPL's notices (no warranty, where the license is), with links. */
+@Composable
+private fun AboutDialog(onClose: () -> Unit) {
+    val context = LocalContext.current
+    var noBrowser by remember { mutableStateOf<String?>(null) }
+    fun open(url: String) {
+        // the phone's browser shows it: Sun Piano itself has no internet access
+        try {
+            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        } catch (_: ActivityNotFoundException) {
+            noBrowser = url
+        }
+    }
+    AlertDialog(
+        onDismissRequest = onClose,
+        confirmButton = { TextButton(onClose) { Text("Close") } },
+        title = { Text("Sun Piano ${BuildConfig.VERSION_NAME}") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("An electronic piano with a synthesizer of its own.")
+                Text(
+                    "Copyright (C) 2026 alimiracle\n" +
+                        "Free software under the GNU General Public License, version 3 or later. " +
+                        "It comes with ABSOLUTELY NO WARRANTY.",
+                    fontSize = 13.sp,
+                )
+                Text("No ads, no tracking, no internet access.", fontSize = 13.sp, color = MaterialTheme.colorScheme.secondary)
+                // above the links, so it's seen without scrolling the dialog
+                noBrowser?.let { Text("No browser found. The address is:\n$it", fontSize = 12.sp, color = Color.Gray) }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton({ open(SOURCE_URL) }) { Text("Source code") }
+                    TextButton({ open(ISSUES_URL) }) { Text("Report a problem") }
+                    TextButton({ open(LICENSE_URL) }) { Text("License (GPL v3)") }
+                }
+            }
+        },
+    )
 }
 
 @Composable
