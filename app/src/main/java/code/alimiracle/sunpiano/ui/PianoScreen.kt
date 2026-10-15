@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -64,6 +65,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
@@ -81,6 +84,9 @@ import code.alimiracle.sunpiano.data.Settings
 import code.alimiracle.sunpiano.midi.BluetoothMidiScanner
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+
+/** Windows narrower than this (phones in landscape) get the compact top bar. */
+private const val COMPACT_BAR_BELOW_DP = 1000
 
 private enum class Panel { NONE, METRONOME, SETTINGS, RECORDINGS, ABOUT }
 
@@ -117,6 +123,9 @@ fun PianoScreen(vm: PianoViewModel) {
         Column(Modifier.fillMaxSize()) {
             ControlBar(
                 wrap = portrait,
+                // a phone in landscape: the full bar doesn't fit on one line, so Settings and About
+                // were off-screen (an upright tablet wraps the bar instead, with room for the labels)
+                compact = !portrait && LocalConfiguration.current.screenWidthDp < COMPACT_BAR_BELOW_DP,
                 settings = settings,
                 sustain = sustain,
                 recording = recording,
@@ -192,6 +201,7 @@ private fun displayIsPortrait(): Boolean {
 @Composable
 private fun ControlBar(
     wrap: Boolean,
+    compact: Boolean,
     settings: Settings,
     sustain: Boolean,
     recording: Boolean,
@@ -207,19 +217,22 @@ private fun ControlBar(
 ) {
     Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 2.dp) {
         // too narrow for one line (portrait): wrap onto more lines instead of scrolling
+        // compact: narrower buttons, and Settings and About as icons (TalkBack still reads their names)
+        val pad = if (compact) PaddingValues(horizontal = 12.dp, vertical = 8.dp) else ButtonDefaults.ContentPadding
         val content: @Composable () -> Unit = {
-            InstrumentPicker(settings.instrumentId, onInstrument)
+            InstrumentPicker(settings.instrumentId, onInstrument, pad)
 
             Text("Vol", fontSize = 12.sp, color = Color.Gray)
-            Slider(settings.volume, onVolume, Modifier.width(110.dp))
+            Slider(settings.volume, onVolume, Modifier.width(if (compact) 90.dp else 110.dp))
 
-            ToggleButton("Sustain", sustain, onSustain)
-            ToggleButton("◀", false) { onOctave(-1) }
-            ToggleButton("▶", false) { onOctave(1) }
+            ToggleButton("Sustain", sustain, pad, onSustain)
+            ToggleButton("◀", false, pad) { onOctave(-1) }
+            ToggleButton("▶", false, pad) { onOctave(1) }
 
             ToggleButton(
                 if (metronome && beat >= 0) "Metro ${beat + 1}" else "Metro",
                 metronome,
+                pad,
             ) { onPanel(Panel.METRONOME) }
 
             Button(
@@ -228,11 +241,25 @@ private fun ControlBar(
                     containerColor = if (recording) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.surfaceVariant,
                     contentColor = Color.White,
                 ),
+                contentPadding = pad,
             ) { Text(if (recording) "■ Stop" else "● Rec") }
 
-            OutlinedButton(onClick = { onPanel(Panel.RECORDINGS) }) { Text("Library") }
-            OutlinedButton(onClick = { onPanel(Panel.SETTINGS) }) { Text("⚙ Settings") }
-            OutlinedButton(onClick = { onPanel(Panel.ABOUT) }) { Text("ⓘ About") }
+            OutlinedButton(onClick = { onPanel(Panel.RECORDINGS) }, contentPadding = pad) { Text("Library") }
+            if (compact) {
+                OutlinedButton(
+                    onClick = { onPanel(Panel.SETTINGS) },
+                    Modifier.semantics { contentDescription = "Settings" },
+                    contentPadding = pad,
+                ) { Text("⚙", fontSize = 18.sp) }
+                OutlinedButton(
+                    onClick = { onPanel(Panel.ABOUT) },
+                    Modifier.semantics { contentDescription = "About" },
+                    contentPadding = pad,
+                ) { Text("ⓘ", fontSize = 18.sp) }
+            } else {
+                OutlinedButton(onClick = { onPanel(Panel.SETTINGS) }) { Text("⚙ Settings") }
+                OutlinedButton(onClick = { onPanel(Panel.ABOUT) }) { Text("ⓘ About") }
+            }
 
             if (midiName != null) {
                 Text("MIDI: $midiName", fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -252,16 +279,17 @@ private fun ControlBar(
                     .horizontalScroll(rememberScrollState())
                     .padding(horizontal = 10.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp),
             ) { content() }
         }
     }
 }
 
 @Composable
-private fun ToggleButton(label: String, on: Boolean, onClick: () -> Unit) {
+private fun ToggleButton(label: String, on: Boolean, padding: PaddingValues, onClick: () -> Unit) {
     Button(
         onClick = onClick,
+        contentPadding = padding,
         colors = ButtonDefaults.buttonColors(
             containerColor = if (on) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
             contentColor = if (on) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
@@ -270,10 +298,10 @@ private fun ToggleButton(label: String, on: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun InstrumentPicker(selectedId: String, onSelect: (String) -> Unit) {
+private fun InstrumentPicker(selectedId: String, onSelect: (String) -> Unit, padding: PaddingValues) {
     var open by remember { mutableStateOf(false) }
     Box {
-        OutlinedButton(onClick = { open = true }) { Text(Instruments.byId(selectedId).name + " ▾", maxLines = 1) }
+        OutlinedButton(onClick = { open = true }, contentPadding = padding) { Text(Instruments.byId(selectedId).name + " ▾", maxLines = 1) }
         DropdownMenu(open, { open = false }) {
             Instruments.ALL.forEach { ins ->
                 DropdownMenuItem(
