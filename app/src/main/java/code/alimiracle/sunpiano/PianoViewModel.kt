@@ -124,6 +124,8 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
     /** All settings when recording started, saved with the recording. */
     private var recSettings: Settings? = null
     private val recEvents = ArrayList<NoteEvent>()
+    /** Notes whose note-on is in the recording and not yet ended: only they get a note-off. */
+    private val recSounding = HashSet<Int>()
 
     private val midi = MidiInput(
         app,
@@ -354,6 +356,10 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
     private fun record(note: Int, velocity: Int) {
         if (!_isRecording.value) return
         val now = SystemClock.elapsedRealtime()
+        if (note != NoteEvent.PEDAL) {
+            // a key held since before recording started: its note-on isn't in the recording
+            if (velocity > 0) recSounding += note else if (!recSounding.remove(note)) return
+        }
         if (recStart < 0) recStart = now
         // each note-on keeps the instrument it's played with: switching mid-recording is kept
         val instrument = if (velocity > 0 && note != NoteEvent.PEDAL) _settings.value.instrumentId else null
@@ -365,6 +371,7 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
     private fun startRecording() {
         stopPlayback()
         recEvents.clear()
+        recSounding.clear()
         recStart = -1
         recSettings = _settings.value
         _isRecording.value = true
@@ -374,7 +381,7 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun stopRecording() {
         // close any still-held notes so the recording is well formed
-        holders.liveSounding().forEach { record(it, 0) }
+        recSounding.toList().forEach { record(it, 0) }
         if (_sustain.value) record(NoteEvent.PEDAL, 0)
         _isRecording.value = false
         val events = recEvents.toList()

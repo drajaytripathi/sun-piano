@@ -54,4 +54,31 @@ class BalancedRecordingTest {
             runBlocking { store.delete(rec.id) }
         }
     }
+
+    @Test
+    fun keysHeldBeforeRecordingStartsAddNoNoteOffs() { // their note-on isn't in the recording (bug.md #5)
+        val store = RecordingStore(app)
+        val before = runBlocking { store.list() }.map { it.id }.toSet()
+        lateinit var vm: PianoViewModel
+        instrumentation.runOnMainSync { vm = PianoViewModel(app) }
+        Thread.sleep(300)
+        instrumentation.runOnMainSync {
+            vm.noteOn(62) // released during the recording
+            vm.noteOn(64) // still held when it stops
+            vm.toggleRecording()
+            vm.noteOn(60)
+        }
+        Thread.sleep(50)
+        instrumentation.runOnMainSync { vm.noteOff(60); vm.noteOff(62) }
+        Thread.sleep(50)
+        instrumentation.runOnMainSync { vm.toggleRecording(); vm.noteOff(64) }
+        Thread.sleep(500) // saved in the background
+
+        val rec = runBlocking { store.list() }.single { it.id !in before }
+        try {
+            assertEquals("events", listOf(60 to 100, 60 to 0), rec.events.map { it.note to it.velocity })
+        } finally {
+            runBlocking { store.delete(rec.id) }
+        }
+    }
 }
