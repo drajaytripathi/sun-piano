@@ -3,6 +3,7 @@ package code.alimiracle.sunpiano.data
 import android.content.Context
 import code.alimiracle.sunpiano.audio.AudioExporter
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
@@ -49,7 +50,8 @@ class RecordingStore(private val context: Context) {
      * [exportMidi]. Takes a while for a long recording; [onProgress] gets 0..1.
      */
     suspend fun exportAudio(r: Recording, settings: Settings, onProgress: (Float) -> Unit): File = withContext(Dispatchers.Default) {
-        File(exportDir(r), exportFileName(r.name, "m4a")).also { AudioExporter.exportM4a(r, settings, it, onProgress) }
+        // stops as soon as the caller is cancelled (the Library closed), instead of encoding to the end
+        File(exportDir(r), exportFileName(r.name, "m4a")).also { AudioExporter.exportM4a(r, settings, it, onProgress) { ensureActive() } }
     }
 
     /** An empty folder for [r]'s export: an earlier one may be under a previous name. */

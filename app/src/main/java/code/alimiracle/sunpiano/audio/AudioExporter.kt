@@ -11,6 +11,7 @@ import code.alimiracle.sunpiano.data.Settings
 import java.io.File
 import java.io.IOException
 import java.nio.ByteOrder
+import java.util.concurrent.CancellationException
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -32,8 +33,11 @@ object AudioExporter {
     private const val SILENT_MS = 300L
     private const val INSTRUMENT_WAIT_MS = 10_000L
 
-    /** Writes [rec] to [file]; [onProgress] gets 0..1. Throws [IOException] if it can't. */
-    fun exportM4a(rec: Recording, current: Settings, file: File, onProgress: (Float) -> Unit = {}) {
+    /**
+     * Writes [rec] to [file]; [onProgress] gets 0..1. Throws [IOException] if it can't. [checkCancelled]
+     * is called often and throws (a [CancellationException]) to stop: the file is then deleted.
+     */
+    fun exportM4a(rec: Recording, current: Settings, file: File, onProgress: (Float) -> Unit = {}, checkCancelled: () -> Unit = {}) {
         val settings = rec.settings ?: current
         val engine = SynthEngine() // never started: only this thread renders it
         val fallback = Instruments.byId(settings.instrumentId) // for notes that don't say
@@ -42,6 +46,7 @@ object AudioExporter {
         val deadline = SystemClock.uptimeMillis() + INSTRUMENT_WAIT_MS
         for (ins in used) {
             while (!engine.isReady(ins)) {
+                checkCancelled()
                 if (SystemClock.uptimeMillis() > deadline) throw IOException("${ins.name} wasn't ready")
                 Thread.sleep(5)
             }
@@ -86,6 +91,7 @@ object AudioExporter {
             var outputDone = false
 
             while (!outputDone) {
+                checkCancelled() // e.g. the Library was closed: no one will see the result
                 if (!inputDone) {
                     val index = codec.dequeueInputBuffer(10_000)
                     if (index >= 0) {
@@ -152,6 +158,9 @@ object AudioExporter {
                 }
             }
             muxer.stop()
+        } catch (e: CancellationException) { // first: it is an IllegalStateException too
+            file.delete()
+            throw e
         } catch (e: IllegalStateException) { // MediaCodec.CodecException, or the muxer refusing
             file.delete()
             throw IOException("encoding failed", e)
