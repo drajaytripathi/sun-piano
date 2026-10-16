@@ -502,7 +502,14 @@ class PianoViewModel(app: Application) : AndroidViewModel(app) {
                         out.toByteArray()
                     } ?: throw IOException("can't open")
                 }
-                val midi = withContext(Dispatchers.Default) { MidiFileReader.read(bytes) }
+                val midi = withContext(Dispatchers.Default) {
+                    // a file the reader didn't foresee must fail the import, not crash the app
+                    try {
+                        MidiFileReader.read(bytes)
+                    } catch (e: RuntimeException) {
+                        throw IOException("unreadable MIDI file", e)
+                    }
+                }
                 val name = fileName?.substringBeforeLast('.')?.trim()?.ifEmpty { null } ?: midi.trackName ?: "Imported MIDI"
                 val rec = Recording(UUID.randomUUID().toString(), name, System.currentTimeMillis(), midi.durationMs, midi.events)
                 saveOrReport(rec, "Couldn't save the imported recording")

@@ -35,6 +35,8 @@ object MidiFileReader {
             if (r.remaining() < 8) return@repeat // a truncated file: keep what was read
             val id = r.ascii(4)
             val length = r.u32()
+            // above 2 GB it reads as negative, which would move the reader backwards
+            if (length < 0) throw IOException("bad MIDI length")
             if (id != "MTrk") { r.skip(length); return@repeat }
             val end = minOf(r.pos + length, bytes.size)
             var tick = 0L

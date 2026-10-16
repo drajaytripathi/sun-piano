@@ -124,4 +124,14 @@ class MidiImportTest {
         val cut = smf(0, 96, intArrayOf(0x00, 0x90, 60, 100, 0x60, 0x80, 60, 0))
         assertThrows(IOException::class.java) { MidiFileReader.read(cut.copyOf(cut.size - 9)) } // ends inside a note
     }
+
+    @Test
+    fun aTrackLengthWithTheTopBitSetIsRefused() { // read as negative, it moved the reader backwards and crashed
+        val note = intArrayOf(0x00, 0x90, 60, 100, 0x60, 0x80, 60, 0)
+        for (length in listOf(0xFFFFFF9C.toInt(), Int.MIN_VALUE)) {
+            val file = smf(1, 96, note, note)
+            for (i in 0 until 4) file[18 + i] = (length ushr (24 - 8 * i)).toByte() // the first track's length
+            assertThrows(IOException::class.java) { MidiFileReader.read(file) }
+        }
+    }
 }
