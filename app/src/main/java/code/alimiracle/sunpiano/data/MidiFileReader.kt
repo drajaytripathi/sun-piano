@@ -75,25 +75,48 @@ object MidiFileReader {
             r.pos = end
         }
 
-        // ticks -> milliseconds, through the tempo map
+        // ticks -> milliseconds, through the tempo map. The time at each tempo change is worked out
+        // once, so each event looks up its segment instead of walking the whole map (a file with a
+        // tempo "ramp" can have tens of thousands of changes).
         tempos.sortBy { it.first }
+        val ppq = division.coerceAtLeast(1)
+        val changeTick = LongArray(tempos.size)
+        val changeUs = DoubleArray(tempos.size) // time at that change
+        val changeTempo = IntArray(tempos.size) // tempo from that change on
+        run {
+            var us = 0.0
+            var lastTick = 0L
+            var tempo = DEFAULT_TEMPO_US
+            for ((i, change) in tempos.withIndex()) {
+                us += (change.first - lastTick).toDouble() * tempo / ppq
+                lastTick = change.first
+                tempo = change.second
+                changeTick[i] = lastTick
+                changeUs[i] = us
+                changeTempo[i] = tempo
+            }
+        }
         fun ms(tick: Long): Long {
             if (division and 0x8000 != 0) { // SMPTE: frames per second and ticks per frame
                 val fps = -(division shr 8).toByte().toInt()
                 val perFrame = division and 0xFF
                 return if (fps > 0 && perFrame > 0) tick * 1000 / (fps * perFrame) else 0
             }
-            val ppq = division.coerceAtLeast(1)
-            var us = 0.0
-            var lastTick = 0L
-            var tempo = DEFAULT_TEMPO_US
-            for ((t, value) in tempos) {
-                if (t >= tick) break
-                us += (t - lastTick).toDouble() * tempo / ppq
-                lastTick = t
-                tempo = value
+            // the last change before [tick] (one at [tick] itself only starts there)
+            var lo = 0
+            var hi = tempos.size - 1
+            var at = -1
+            while (lo <= hi) {
+                val mid = (lo + hi) ushr 1
+                if (changeTick[mid] < tick) {
+                    at = mid
+                    lo = mid + 1
+                } else {
+                    hi = mid - 1
+                }
             }
-            us += (tick - lastTick).toDouble() * tempo / ppq
+            val us = if (at < 0) tick.toDouble() * DEFAULT_TEMPO_US / ppq
+            else changeUs[at] + (tick - changeTick[at]).toDouble() * changeTempo[at] / ppq
             return (us / 1000).toLong()
         }
 

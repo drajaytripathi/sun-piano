@@ -8,6 +8,7 @@ import code.alimiracle.sunpiano.data.Recording
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.ByteArrayOutputStream
 import java.io.IOException
@@ -123,6 +124,43 @@ class MidiImportTest {
         assertThrows(IOException::class.java) { MidiFileReader.read(smf(0, 96, intArrayOf(0x00, 0x99, 36, 100, 0x10, 0x89, 36, 0))) } // drums only
         val cut = smf(0, 96, intArrayOf(0x00, 0x90, 60, 100, 0x60, 0x80, 60, 0))
         assertThrows(IOException::class.java) { MidiFileReader.read(cut.copyOf(cut.size - 9)) } // ends inside a note
+    }
+
+    @Test
+    fun manyTempoChangesAreFollowed() {
+        // a tempo change on every quarter note (96 ticks), alternating 120 and 60 bpm, a note on each quarter
+        val quarters = 200
+        val tempos = ArrayList<Int>()
+        repeat(quarters) { q ->
+            val us = if (q % 2 == 0) 500_000 else 1_000_000
+            tempos += listOf(if (q == 0) 0x00 else 0x60, 0xFF, 0x51, 0x03, us shr 16, (us shr 8) and 0xFF, us and 0xFF)
+        }
+        val notes = ArrayList<Int>()
+        repeat(quarters) { q -> notes += listOf(if (q == 0) 0x00 else 0x50, 0x90, 60, 100, 0x10, 0x80, 60, 0) } // held 16 ticks, then 80 to the next
+        val events = MidiFileReader.read(smf(1, 96, tempos.toIntArray(), notes.toIntArray())).events
+        var ms = 0L
+        val expected = ArrayList<Triple<Long, Int, Int>>()
+        repeat(quarters) { q ->
+            val quarterMs = if (q % 2 == 0) 500L else 1000L
+            expected += Triple(ms, 60, 100)
+            expected += Triple(ms + quarterMs * 16 / 96, 60, 0)
+            ms += quarterMs
+        }
+        assertEquals(expected, notes(events))
+    }
+
+    @Test
+    fun aFileWithTensOfThousandsOfTempoChangesReadsQuickly() { // each event walked the whole tempo map
+        val tempos = ArrayList<Int>()
+        repeat(50_000) { tempos += listOf(0x01, 0xFF, 0x51, 0x03, 0x07, 0xA1, 0x20) } // a "ramp": one per tick
+        val notes = ArrayList<Int>()
+        repeat(50_000) { notes += listOf(0x01, 0x90, 60 + it % 12, 100, 0x00, 0x80, 60 + it % 12, 0) }
+        val file = smf(1, 96, tempos.toIntArray(), notes.toIntArray())
+        val start = System.nanoTime()
+        MidiFileReader.read(file)
+        val ms = (System.nanoTime() - start) / 1_000_000
+        println("TIMING read ${file.size} bytes with 50000 tempo changes in $ms ms")
+        assertTrue("reading took $ms ms", ms < 2_000)
     }
 
     @Test
