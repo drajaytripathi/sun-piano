@@ -41,6 +41,11 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
         private const val LIMIT_CEILING = 0.89f
         /** How fast the limiter lets the level back up after a peak: slow enough not to pump. */
         private const val LIMIT_RELEASE_S = 0.15f
+        /**
+         * Release of the second limiter, on piano plus click: about as long as a click, so it
+         * turns the mix down only while a loud click meets loud playing (issue #2's follow-up).
+         */
+        private const val MIX_LIMIT_RELEASE_S = 0.02f
         /** Extra voice slots where stolen notes fade out while the new note starts in another. */
         private const val FADE_SLOTS = 8
         /** Time constant of that fade: inaudible as a click, ~45 ms to silence. */
@@ -211,6 +216,7 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
         reverb.clear()
         clickEnv = 0f
         limitGain = 1f
+        mixGain = 1f
     }
 
     // ---- audio thread ----
@@ -282,6 +288,9 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
     /** The limiter's current gain (1 = not limiting); audio thread only. */
     private var limitGain = 1f
     private val limitRelease = exp(-1f / (LIMIT_RELEASE_S * sampleRate))
+    /** The second limiter's gain, on the final mix; audio thread only. */
+    private var mixGain = 1f
+    private val mixRelease = exp(-1f / (MIX_LIMIT_RELEASE_S * sampleRate))
 
     /**
      * Renders the next [BLOCK] stereo frames into [out] (interleaved). Called by the audio
@@ -312,16 +321,22 @@ class SynthEngine(private val openOutput: (sampleRate: Int) -> AudioOutput = ::A
             val peak = max(abs(l), abs(r))
             val allowed = if (peak * limitGain > LIMIT_CEILING) LIMIT_CEILING / peak else 1f
             limitGain = if (allowed < limitGain) allowed else 1f - (1f - limitGain) * limitRelease
+            // the click on top: at full volume it can pass the ceiling with loud playing (or alone)
             val c = click[i] * master
-            out[2 * i] = softClip(l * limitGain + c) // only a safety net now
-            out[2 * i + 1] = softClip(r * limitGain + c)
+            l = l * limitGain + c
+            r = r * limitGain + c
+            val mixPeak = max(abs(l), abs(r))
+            val mixAllowed = if (mixPeak * mixGain > LIMIT_CEILING) LIMIT_CEILING / mixPeak else 1f
+            mixGain = if (mixAllowed < mixGain) mixAllowed else 1f - (1f - mixGain) * mixRelease
+            out[2 * i] = softClip(l * mixGain) // only a safety net: both limiters stay below its knee
+            out[2 * i + 1] = softClip(r * mixGain)
         }
     }
 
     private fun softClip(x: Float): Float {
         val a = abs(x)
-        if (a < 0.7f) return x
-        val y = 0.7f + 0.3f * tanh((a - 0.7f) / 0.3f)
+        if (a < 0.9f) return x
+        val y = 0.9f + 0.1f * tanh((a - 0.9f) / 0.1f)
         return if (x < 0f) -y else y
     }
 
