@@ -54,13 +54,17 @@ fun PianoApp(vm: PianoViewModel) = SunPianoTheme {
     // would have very long, narrow keys, so show two: the upper one continues where the lower one ends.
     // Decided by the display, not the window, so split screen on a landscape tablet keeps one keyboard.
     val portrait = displayIsPortrait()
+    // A tablet in landscape has room for two rows too (unless turned off in Settings). This one is
+    // decided by the window, so a short split-screen window still gets one keyboard with usable keys.
+    val tallLandscape = !portrait && settings.twoRowsInLandscape &&
+        LocalConfiguration.current.screenHeightDp >= TWO_ROW_MIN_HEIGHT_DP
     Box(
         Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .windowInsetsPadding(WindowInsets.safeDrawing),
     ) {
-        val rows = if (portrait) 2 else 1
+        val rows = if (portrait || tallLandscape) 2 else 1
         SideEffect { vm.setKeyboardRows(rows) }
         Column(Modifier.fillMaxSize()) {
             PianoTopBar(
@@ -111,6 +115,9 @@ fun PianoApp(vm: PianoViewModel) = SunPianoTheme {
 
     PianoDialogs(vm, panel) { panel = Panel.NONE }
 }
+
+/** Window height (dp) from which a landscape window shows two keyboards: tablets, not phones. */
+private const val TWO_ROW_MIN_HEIGHT_DP = 600
 
 /** Whether the whole display (not just this app's window) is taller than wide. */
 @Composable

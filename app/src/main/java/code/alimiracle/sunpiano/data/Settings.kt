@@ -29,6 +29,7 @@ data class Settings(
     val velocityFromTouch: Boolean = true,
     val glissando: Boolean = true,
     val keepScreenOn: Boolean = true,
+    val twoRowsInLandscape: Boolean = true,
     val bpm: Int = 100,
     val beatsPerBar: Int = 4,
     val metronomeVolume: Float = 0.6f,
@@ -46,6 +47,7 @@ data class Settings(
         put("velocityFromTouch", velocityFromTouch)
         put("glissando", glissando)
         put("keepScreenOn", keepScreenOn)
+        put("twoRowsInLandscape", twoRowsInLandscape)
         put("bpm", bpm)
         put("beatsPerBar", beatsPerBar)
         put("metronomeVolume", exact(metronomeVolume))
@@ -70,6 +72,7 @@ data class Settings(
                 velocityFromTouch = o.optBoolean("velocityFromTouch", d.velocityFromTouch),
                 glissando = o.optBoolean("glissando", d.glissando),
                 keepScreenOn = o.optBoolean("keepScreenOn", d.keepScreenOn),
+                twoRowsInLandscape = o.optBoolean("twoRowsInLandscape", d.twoRowsInLandscape),
                 bpm = o.optInt("bpm", d.bpm),
                 beatsPerBar = o.optInt("beatsPerBar", d.beatsPerBar),
                 metronomeVolume = o.optDouble("metronomeVolume", d.metronomeVolume.toDouble()).toFloat(),
@@ -98,6 +101,7 @@ class SettingsRepository(private val context: Context) {
         val velocity = booleanPreferencesKey("velocity_touch")
         val glissando = booleanPreferencesKey("glissando")
         val keepOn = booleanPreferencesKey("keep_screen_on")
+        val twoRows = booleanPreferencesKey("two_rows_landscape")
         val bpm = intPreferencesKey("bpm")
         val beats = intPreferencesKey("beats")
         val metroVol = floatPreferencesKey("metro_volume")
@@ -130,6 +134,7 @@ class SettingsRepository(private val context: Context) {
                 it[K.velocity] = s.velocityFromTouch
                 it[K.glissando] = s.glissando
                 it[K.keepOn] = s.keepScreenOn
+                it[K.twoRows] = s.twoRowsInLandscape
                 it[K.bpm] = s.bpm
                 it[K.beats] = s.beatsPerBar
                 it[K.metroVol] = s.metronomeVolume
@@ -154,6 +159,7 @@ class SettingsRepository(private val context: Context) {
             velocityFromTouch = this[K.velocity] ?: d.velocityFromTouch,
             glissando = this[K.glissando] ?: d.glissando,
             keepScreenOn = this[K.keepOn] ?: d.keepScreenOn,
+            twoRowsInLandscape = this[K.twoRows] ?: d.twoRowsInLandscape,
             bpm = this[K.bpm] ?: d.bpm,
             beatsPerBar = this[K.beats] ?: d.beatsPerBar,
             metronomeVolume = this[K.metroVol] ?: d.metronomeVolume,

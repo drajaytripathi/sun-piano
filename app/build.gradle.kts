@@ -12,12 +12,16 @@ android {
         applicationId = "code.alimiracle.sunpiano"
         minSdk = 31
         targetSdk = 37
-        versionCode = 2
-        versionName = "1.0"
+        versionCode = 3
+        versionName = "1.001"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
+        // installs beside the F-Droid build (which is signed with another key) instead of clashing with it
+        debug {
+            applicationIdSuffix = ".dev"
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true

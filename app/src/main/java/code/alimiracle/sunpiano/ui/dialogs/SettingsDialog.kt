@@ -65,6 +65,7 @@ internal fun SettingsDialog(
                 SwitchRow("Touch position sets loudness", s.velocityFromTouch) { b -> update { it.copy(velocityFromTouch = b) } }
                 SwitchRow("Glissando (slide between keys)", s.glissando) { b -> update { it.copy(glissando = b) } }
                 SwitchRow("Keep screen on", s.keepScreenOn) { b -> update { it.copy(keepScreenOn = b) } }
+                SwitchRow("Two keyboards in landscape (tablets)", s.twoRowsInLandscape) { b -> update { it.copy(twoRowsInLandscape = b) } }
                 bluetoothMidi()
                 Text(
                     "Tip: a computer keyboard works too (Z–M row = C3, Q–U row = C4), as does a USB MIDI keyboard: just plug it in.",
