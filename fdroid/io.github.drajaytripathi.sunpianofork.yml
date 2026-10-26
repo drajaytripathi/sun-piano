@@ -1,0 +1,24 @@
+Categories:
+  - Music Practice Tool
+License: GPL-3.0-or-later
+AuthorName: drajaytripathi
+SourceCode: https://github.com/drajaytripathi/sun-piano
+IssueTracker: https://github.com/drajaytripathi/sun-piano/issues
+
+AutoName: Sun Piano Fork
+
+RepoType: git
+Repo: https://github.com/drajaytripathi/sun-piano.git
+
+Builds:
+  - versionName: '1.002'
+    versionCode: 4
+    commit: 754410899c775356f80fdc6a4cb1a039db6b8cf0
+    subdir: app
+    gradle:
+      - yes
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+CurrentVersion: '1.002'
+CurrentVersionCode: 4
