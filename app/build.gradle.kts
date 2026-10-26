@@ -9,11 +9,11 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "code.alimiracle.sunpiano"
+        applicationId = "io.github.drajaytripathi.sunpianofork"
         minSdk = 31
         targetSdk = 37
-        versionCode = 3
-        versionName = "1.001"
+        versionCode = 4
+        versionName = "1.002"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

@@ -1,4 +1,4 @@
-Sun Piano is an electronic piano for Android. Every sound is synthesized in real time by its own engine, so the app is small and needs no sample downloads.
+Sun Piano Fork is an electronic piano for Android, based on Sun Piano by alimiracle (https://codeberg.org/alimiracle/sun-piano). The fork adds a two-keyboard layout for tablets held in landscape. Every sound is synthesized in real time by its own engine, so the app is small and needs no sample downloads.
 
 <b>Keyboard</b>
 <ul>
@@ -6,7 +6,7 @@ Sun Piano is an electronic piano for Android. Every sound is synthesized in real
 <li>Glissando: slide a finger across the keys to play each one</li>
 <li>Loudness from where you touch a key</li>
 <li>Note names as letters or Do-Re-Mi, 7 to 28 visible keys, octave buttons</li>
-<li>Tablets held upright (Android 16 and newer) show two keyboards stacked</li>
+<li>Tablets show two keyboards stacked, upright and in landscape, scrolled together by the mini-map (can be turned off in Settings)</li>
 </ul>
 
 <b>Sound</b>
