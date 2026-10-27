@@ -21,7 +21,7 @@ As F-Droid asks of forks, it has its own application ID, name and icon, and cred
 ### Policy
 
 * [x] The app complies with the inclusion criteria. Note on Quality: the fork's own repository is new (October 2026); the code it builds on is the actively maintained Sun Piano. I commit to maintaining the fork.
-* [ ] The original app author has been notified (and does not oppose the inclusion). <!-- fill in once the notice is sent: date and how -->
+* [x] The original app author has been notified (and does not oppose the inclusion). Notified by email (alimiracle@riseup.net, the address in Sun Piano's F-Droid metadata) on 2026-10-27; no reply yet, I'll add it here when it comes.
 * [x] The upstream app source code repo contains the app metadata in a Fastlane folder structure (en-US, with summary, description, icon, screenshots and changelog).
 
 ### Docs
