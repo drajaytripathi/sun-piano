@@ -11,14 +11,14 @@ RepoType: git
 Repo: https://github.com/drajaytripathi/sun-piano-duo.git
 
 Builds:
-  - versionName: '1.002'
-    versionCode: 4
-    commit: 754410899c775356f80fdc6a4cb1a039db6b8cf0
+  - versionName: '1.003'
+    versionCode: 5
+    commit: 5fbd3c40a69ce1e0b250e4b48abe98a85b66bb28
     subdir: app
     gradle:
       - yes
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
-CurrentVersion: '1.002'
-CurrentVersionCode: 4
+CurrentVersion: '1.003'
+CurrentVersionCode: 5
