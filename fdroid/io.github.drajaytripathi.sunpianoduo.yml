@@ -17,6 +17,7 @@ Builds:
     subdir: app
     gradle:
       - yes
+    build: gradle assembleRelease || true
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
