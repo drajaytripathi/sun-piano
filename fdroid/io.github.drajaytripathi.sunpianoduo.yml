@@ -2,13 +2,13 @@ Categories:
   - Music Practice Tool
 License: GPL-3.0-or-later
 AuthorName: drajaytripathi
-SourceCode: https://github.com/drajaytripathi/sun-piano
-IssueTracker: https://github.com/drajaytripathi/sun-piano/issues
+SourceCode: https://github.com/drajaytripathi/sun-piano-duo
+IssueTracker: https://github.com/drajaytripathi/sun-piano-duo/issues
 
-AutoName: Sun Piano Fork
+AutoName: Sun Piano Duo
 
 RepoType: git
-Repo: https://github.com/drajaytripathi/sun-piano.git
+Repo: https://github.com/drajaytripathi/sun-piano-duo.git
 
 Builds:
   - versionName: '1.002'

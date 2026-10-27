@@ -1,4 +1,4 @@
-1.002 (first release of Sun Piano Fork):
+1.003 (first release of Sun Piano Duo):
 • Tablets in landscape show two keyboards stacked, one above the other, scrolled together by the mini-map
 • New Settings switch: Two keyboards in landscape (tablets)
 • Its own app name and ID, so it installs beside the original Sun Piano

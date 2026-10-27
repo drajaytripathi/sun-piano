@@ -1,4 +1,4 @@
-Sun Piano Fork is an electronic piano for Android, based on Sun Piano by alimiracle (https://codeberg.org/alimiracle/sun-piano). The fork adds a two-keyboard layout for tablets held in landscape. Every sound is synthesized in real time by its own engine, so the app is small and needs no sample downloads.
+Sun Piano Duo is an electronic piano for Android, based on Sun Piano by alimiracle (https://codeberg.org/alimiracle/sun-piano). The fork adds a two-keyboard layout for tablets held in landscape. Every sound is synthesized in real time by its own engine, so the app is small and needs no sample downloads.
 
 <b>Keyboard</b>
 <ul>

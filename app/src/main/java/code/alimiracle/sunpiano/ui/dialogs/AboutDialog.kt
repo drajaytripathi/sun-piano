@@ -24,7 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import code.alimiracle.sunpiano.BuildConfig
 
-private const val SOURCE_URL = "https://github.com/drajaytripathi/sun-piano"
+private const val SOURCE_URL = "https://github.com/drajaytripathi/sun-piano-duo"
 private const val ORIGINAL_URL = "https://codeberg.org/alimiracle/sun-piano"
 private const val ISSUES_URL = "$SOURCE_URL/issues"
 private const val LICENSE_URL = "https://www.gnu.org/licenses/gpl-3.0.html"
@@ -45,7 +45,7 @@ internal fun AboutDialog(onClose: () -> Unit) {
     AlertDialog(
         onDismissRequest = onClose,
         confirmButton = { TextButton(onClose) { Text("Close") } },
-        title = { Text("Sun Piano Fork ${BuildConfig.VERSION_NAME}") },
+        title = { Text("Sun Piano Duo ${BuildConfig.VERSION_NAME}") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("An electronic piano with a synthesizer of its own. A fork of Sun Piano by alimiracle.")
